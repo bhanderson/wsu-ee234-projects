@@ -145,6 +145,7 @@ branch:
 
 	brancheq:
 	branchne:
+    halt:
     J iterate
 .END branch
 
