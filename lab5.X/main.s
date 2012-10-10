@@ -1,7 +1,7 @@
 # ***************************************************************************************************************************
 # * Author: Bryce Handerson                                                                                                 *
 # * Course: EE 234 Microprocessor Systems - Lab #                                                                           *
-# * Project:                                                                                                                *
+# * Project: ROBO-MAL PROGRAM                                                                                               *
 # * File: main.s                                                                                                            *
 # * Description: This file is provided to help you get started with MIPS32 (.s) assembly programs.                          *
 # *              You may use this template for getting started with .S files also, in which preprocessor directives         *
@@ -41,7 +41,7 @@
 
 .DATA                        # The start of the data segment
 
-program:        .word 0x1011, 0x1211, 0x2110, 0x3106, 0x4190, 0x3007, 0x4910, 0x4201, 0x4403, 0x3300, 0x80, 0x00
+program: .word 0x1011, 0x1211, 0x2110, 0x3106, 0x4190, 0x3007, 0x4910, 0x4201, 0x4403, 0x3300, 0x80, 0x00
 
 # ***************************************************************************************************************************
 # *                                                                                                                         *
@@ -59,7 +59,7 @@ main:
 #	JAL setup_switches
 #	JAL setup_LEDs
 
-    LA $a1, program
+    LA $a1, program 		# Load the program instructions into program memory
 
 	loop:
        # fetch instruction
@@ -75,7 +75,7 @@ main:
        ADDI $t0, $t0, 1
        BEQ $t0, $t1, control
 #TODO Error check
-iterate:
+	iterate:
        # execute it
        ADDI $a1, $a1, 4  # iterate program counter
 
@@ -87,12 +87,15 @@ iterate:
 data:
     ANDI $t0, $s2, 0x0F00
     SRL $t0, 8
-    LI $t1, 0
-    BEQ $t0, $t1, READ
-
-
-
-
+    LI $t1, 0				#t1 = 0
+    BEQ $t0, $t1, read
+	ADDI $t1, $t1, 1		#t1 = 1 now
+	BEQ $t0, $t1, write
+	ADDI $t1, $t1, 1 		#t1 = 2 now
+	BEQ $t0, $t1, load
+	ADDI $t1, $t1, 1		#t1 = 3 now
+	BEQ $t0, $t1, store
+	
     read:
 
     write:
@@ -108,11 +111,38 @@ data:
 
 .ENT math
 math:
+	ANDI $t0, $s1, 0x0F00
+	SRL $t0, 8
+    LI $t1, 0				#t1 = 0
+    BEQ $t0, $t1, add
+    ADDI $t1, $t1, 1    	#t1 = 1 now
+    BEQ $t0, $t1, subtract
+    ADDI $t1, $t1, 1    	#t1 = 2 now
+    BEQ $t0, $t1, multiply 
+	
+	add:
+	subtract:
+	multiply:
+
     J iterate
 .END math
 
 .ENT branch
 branch:
+	ANDI $t0, $s1, 0x0F00
+	SRL $t0, 8
+    LI $t1, 0
+    BEQ $t0, $t1, branchaddr
+    ADDI $t1, $t1, 1    #t1 = 1 now
+    BEQ $t0, $t1, brancheq
+    ADDI $t1, $t1, 1    #t1 = 2 now
+    BEQ $t0, $t1, branchne 
+    ADDI $t1, $t1, 1    #t1 = 3 now
+    BEQ $t0, $t1, halt
+	
+	branchaddr:
+	brancheq:
+	branchne:
     J iterate
 .END branch
 
