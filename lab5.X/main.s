@@ -59,7 +59,7 @@ main:
 #	JAL setup_switches
 #	JAL setup_LEDs
 
-    LA $a1, program 		# Load the program instructions into program memory
+    LA $a1, program			# Load the program instructions into program memory
 
 	loop:
        # fetch instruction
@@ -91,7 +91,7 @@ data:
     BEQ $t0, $t1, read
 	ADDI $t1, $t1, 1		#t1 = 1 now
 	BEQ $t0, $t1, write
-	ADDI $t1, $t1, 1 		#t1 = 2 now
+	ADDI $t1, $t1, 1		#t1 = 2 now
 	BEQ $t0, $t1, load
 	ADDI $t1, $t1, 1		#t1 = 3 now
 	BEQ $t0, $t1, store
@@ -115,10 +115,10 @@ math:
 	SRL $t0, 8
     LI $t1, 0				#t1 = 0
     BEQ $t0, $t1, add
-    ADDI $t1, $t1, 1    	#t1 = 1 now
+    ADDI $t1, $t1, 1	#t1 = 1 now
     BEQ $t0, $t1, subtract
-    ADDI $t1, $t1, 1    	#t1 = 2 now
-    BEQ $t0, $t1, multiply 
+	ADDI $t1, $t1, 1		#t1 = 2 now
+	BEQ $t0, $t1, multiply 
 	
 	add:
 	subtract:
@@ -141,6 +141,8 @@ branch:
     BEQ $t0, $t1, halt
 	
 	branchaddr:
+		ANDI $t0, $s1, 0x00FF
+
 	brancheq:
 	branchne:
     J iterate
