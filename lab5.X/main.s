@@ -67,92 +67,137 @@ main:
        # decode it
        LI $t0, 1
        SRL $t1, $s2, 12
-       BEQ $t0, $t1, data
+       BEQ $t0, $t1, rm_data
        ADDI $t0, $t0, 1
-       BEQ $t0, $t1, math
+       BEQ $t0, $t1, rm_math
        ADDI $t0, $t0, 1
-       BEQ $t0, $t1, branch
+       BEQ $t0, $t1, rm_branch
        ADDI $t0, $t0, 1
-       BEQ $t0, $t1, control
+       BEQ $t0, $t1, rm_control
 #TODO Error check
 	iterate:
        # execute it
-       ADDI $a1, $a1, 4  # iterate program counter
+		ADDI $a1, $a1, 4  # iterate program counter
 
 	end:
 		J loop               # Embedded programs require that they run forever! So jump back to the beginning of the loop
+	error:
+		LI $t0, 0xF
+		SW $t0, (LATB)
+		LI $t0, 0
+		SW $t0, (LATB)
+		J error
+	stop:
+
 .END main
 
-.ENT data
-data:
+.ENT rm_data
+rm_data:
     ANDI $t0, $s2, 0x0F00
     SRL $t0, 8
     LI $t1, 0				#t1 = 0
-    BEQ $t0, $t1, read
+    BEQ $t0, $t1, rm_data_read
 	ADDI $t1, $t1, 1		#t1 = 1 now
-	BEQ $t0, $t1, write
+	BEQ $t0, $t1, rm_data_write
 	ADDI $t1, $t1, 1		#t1 = 2 now
-	BEQ $t0, $t1, load
+	BEQ $t0, $t1, rm_data_load
 	ADDI $t1, $t1, 1		#t1 = 3 now
-	BEQ $t0, $t1, store
+	BEQ $t0, $t1, rm_data_store
 	
-    read:
+    rm_data_read:
+		ANDI $t0, $s2, 0xFF	#mask only operand of instruction
+		LI $t1, 0x01		
+		BEQ $t1, $s2, rm_data_read_var1	#check to see what variable 1 or 2
+		LI $t1, 0x11
+		BEQ $t1, $s2, rm_data_read_var2
+		J error
+		rm_data_read_var1:
+			
+		rm_data_read_var2:
 
-    write:
+	J iterate
+    rm_data_write:
 
-    load:
+    rm_data_load:
 
 
-    store:
+    rm_data_store:
 
 
     J iterate
-.END data
+.END rm_data
 
-.ENT math
-math:
+.ENT rm_math
+rm_math:
 	ANDI $t0, $s1, 0x0F00
 	SRL $t0, 8
-    LI $t1, 0				#t1 = 0
-    BEQ $t0, $t1, add
+    LI $t1, 0			#t1 = 0
+    BEQ $t0, $t1, rm_math_add
     ADDI $t1, $t1, 1	#t1 = 1 now
-    BEQ $t0, $t1, subtract
-	ADDI $t1, $t1, 1		#t1 = 2 now
-	BEQ $t0, $t1, multiply 
+    BEQ $t0, $t1, rm_math_subtract
+	ADDI $t1, $t1, 1	#t1 = 2 now
+	BEQ $t0, $t1, rm_math_multiply 
 	
-	add:
-	subtract:
-	multiply:
+	rm_math_add:
+	rm_math_subtract:
+	rm_math_multiply:
 
     J iterate
-.END math
+.END rm_math
 
-.ENT branch
-branch:
+.ENT rm_branch
+rm_branch:
 	ANDI $t0, $s1, 0x0F00
 	SRL $t0, 8
     LI $t1, 0
-    BEQ $t0, $t1, branchaddr
+    BEQ $t0, $t1, rm_branch_address
     ADDI $t1, $t1, 1    #t1 = 1 now
-    BEQ $t0, $t1, brancheq
+    BEQ $t0, $t1, rm_branch_equal
     ADDI $t1, $t1, 1    #t1 = 2 now
-    BEQ $t0, $t1, branchne 
+    BEQ $t0, $t1, rm_branch_not_equal
     ADDI $t1, $t1, 1    #t1 = 3 now
-    BEQ $t0, $t1, halt
+    BEQ $t0, $t1, rm_branch_halt
 	
-	branchaddr:
+	rm_branch_address:
 		ANDI $t0, $s1, 0x00FF
 
-	brancheq:
-	branchne:
-    halt:
-    J iterate
-.END branch
+	rm_branch_equal:
 
-.ENT control
-control:
+	rm_branch_not_equal:
+
+    rm_branch_halt:
+    J stop    
+
     J iterate
-.END control
+.END rm_branch
+
+.ENT rm_control
+rm_control:
+    ANDI $t0, $s1, 0x0F00
+    SRL $t0, 8
+    LI $t1, 0
+    BEQ $t0, $t1, rm_control_left
+    ADDI $t1, $t1, 1    #t1 = 1
+    BEQ $t0, $t1, rm_control_right
+    ADDI $t1, $t1, 1    #t1 = 2
+    BEQ $t0, $t1, rm_control_foreward
+    ADDI $t1, $t1, 1    #t1 = 3
+    BEQ $t0, $t1, rm_control_backward
+	ADDI $t1, $t1, 1	#t1 = 4
+	BEQ $t0, $t1, rm_control_brake
+
+	rm_control_left:
+	
+	rm_control_right:
+
+	rm_control_foreward:
+
+	rm_control_backward:
+
+	rm_control_brake:
+
+	J iterate
+.END rm_control
 
 
 
@@ -167,7 +212,6 @@ reset:
 	JR $ra
 
 .END reset
-
 
 
 .ENT setup_switches
@@ -188,7 +232,6 @@ setup_switches:
 	JR $ra
 
 .END setup_switches
-
 
 
 .ENT setup_LEDs
