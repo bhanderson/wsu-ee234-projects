@@ -91,9 +91,34 @@ main:
 
 .END main
 
+.ENT rm_search_program
+rm_search_program:
+	LI $t0, 0			#t0 is the counter
+	LI $t1, 0x3300		#t1 is the checker for eof
+	ADD $t2, $zero, $a1     	#t2 is the copy of a1 to preserve it
+
+	rm_search_program_loop:
+        LW $t3, 0($t2)
+		BEQ $t1, $t3, rm_search_program_done
+		ADDI $t2, $t2, 4	# if not a variable increment temp program variable
+        ADDI $t0, $t0, 4    # increment counter by 4
+		J rm_search_program_loop
+	rm_search_program_done:
+		ADDI $t0, $t0, 4	# increment t0 by 4 to put it at the first variable
+		ADDI $s4, $t0, 0
+		JR $ra
+.END rm_search_program
+
 .ENT rm_data
 rm_data:
-    ANDI $t0, $s2, 0x0F00
+	ADDI $sp, $sp, -4		#push ra to stack
+	SW $ra, 0($sp)
+	JAL rm_search_program	#search for the first variable and store it in s4
+	LW $ra, 0($sp)
+	ADDI $sp, $sp, 4		#pop ra from stack
+
+
+    ANDI $t0, $s2, 0x0F00	# mask operation
     SRL $t0, 8
     LI $t1, 0				#t1 = 0
     BEQ $t0, $t1, rm_data_read
@@ -111,6 +136,7 @@ rm_data:
 		LI $t1, 0x11
 		BEQ $t1, $s2, rm_data_read_var2
 		J error
+
 		rm_data_read_var1:
 			
 		rm_data_read_var2:
