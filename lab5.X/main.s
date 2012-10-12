@@ -1,10 +1,11 @@
 # ***************************************************************************************************************************
-# * Author: Bryce Handerson                                                                                                 *
-# * Course: EE 234 Microprocessor Systems - Lab #                                                                           *
+# * Author: Bryce Handerson & Alex Schuldberg                                                                               *
+# * Course: EE 234 Microprocessor Systems - Lab #5                                                                          *
 # * Project: ROBO-MAL PROGRAM                                                                                               *
 # * File: main.s                                                                                                            *
-# * Description: This file is provided to help you get started with MIPS32 (.s) assembly programs.                          *
-# *              You may use this template for getting started with .S files also, in which preprocessor directives         *
+# * Description: This file is the beginning to a robo mal program that takes in a program using hex digits                  *
+# *              and operates on the operation and operand. It uses the cerebot MX4ck by Digilent using the 				*
+# *				 PIC32MX460F512L																							*
 # *              are allowed.                                                                                               *
 # *                                                                                                                         *
 # * Inputs:                                                                                                                 *
@@ -14,43 +15,21 @@
 # * Revision History:                                                                                                       *
 # ***************************************************************************************************************************
 
+# ******************************************* Include Files *****************************************************************
 
-# ***************************************************************************************************************************
-# *                                                                                                                         *
-# *                                           Include Files                                                                 *
-# *                                                                                                                         *
-# ***************************************************************************************************************************
-
-
-# ***************************************************************************************************************************
-# *                                                                                                                         *
-# *                                           Global Symbols                                                                *
-# *                                                                                                                         *
-# ***************************************************************************************************************************
+# ******************************************* Global Symbols ****************************************************************
 
 .GLOBAL main
 
-# ***************************************************************************************************************************
-# *                                                                                                                         *
-# *                                           Data Segment                                                                  *
-# *                                                                                                                         *
-# ***************************************************************************************************************************
-
-# This is where all variables are defined.
-# We generally assign pointer/address registers to these variables and access them indirectly via these registers.
+# ******************************************* Data Segment ******************************************************************
 
 .DATA                        # The start of the data segment
 
 program: .word 0x1011, 0x1211, 0x2110, 0x3106, 0x4190, 0x3007, 0x4910, 0x4201, 0x4403, 0x3300, 0x80, 0x00
 
-# ***************************************************************************************************************************
-# *                                                                                                                         *
-# *                                           Code Segment                                                                  *
-# *                                                                                                                         *
-# ***************************************************************************************************************************
+# ******************************************* Code Segment ******************************************************************
 
 .TEXT                       # The start of the code segment
-
 
 .ENT main					# Setup a main entry point
 main:
