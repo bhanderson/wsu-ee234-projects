@@ -186,7 +186,8 @@ rm_branch:
 		ANDI $t0, $s1, 0x00FF	# 0x3007 branch to cell 7
 		LI $t1, 4				# size of instruction to muliply to
 		MUL $t0, $t0, $t1		# multiply the cell number ($t0) to the size of a word (t1) to get the byte address of the program counter
-		OR $s2, $t0, $a1
+		ADDI $s2, $t0, $a1		# change program counter
+		J loop
 	rm_branch_equal:
 
 	rm_branch_not_equal:
