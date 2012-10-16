@@ -73,6 +73,8 @@ main:
 		SW $t0, (LATB)
 		J error
 	stop:					# here to end the program
+        LI $v0, 10
+        syscall
     J stop
 .END main
 
