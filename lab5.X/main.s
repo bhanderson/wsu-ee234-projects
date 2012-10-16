@@ -36,13 +36,17 @@ main:
 
 #	JAL reset				# JAL instruction ensures address of return point is stored in register ra
 #	JAL setup_switches
-#	JAL setup_LEDs
+	JAL setup_LEDs
 
     LA $a1, program			# Load the program instructions into program memory
+    LI $s1, 0
 
 	loop:
        # fetch instruction
+       ADDI $s1, $s1, 1
        LW $s2, ($a1)
+	   ANDI $s3,$s2,0xFF00
+	   ANDI $s4,$s2,0x00FF
        # decode it and branch
        LI $t0, 1			# checksum for data class (1)
        SRL $t1, $s2, 12
@@ -69,7 +73,7 @@ main:
 		SW $t0, (LATB)
 		J error
 	stop:					# here to end the program
-
+    J stop
 .END main
 
 
@@ -106,11 +110,11 @@ rm_data:
     SRL $t0, 8					# shift right 8 for ease of access
     LI $t1, 0					# t1 is the checksum
     BEQ $t0, $t1, rm_data_read
-	ADDI $t1, $t1, 1			# t1 = 1 
+	ADDI $t1, $t1, 1			# t1 = 1
 	BEQ $t0, $t1, rm_data_write
-	ADDI $t1, $t1, 1			# t1 = 2 
+	ADDI $t1, $t1, 1			# t1 = 2
 	BEQ $t0, $t1, rm_data_load
-	ADDI $t1, $t1, 1			# t1 = 3 
+	ADDI $t1, $t1, 1			# t1 = 3
 	BEQ $t0, $t1, rm_data_store
 	J error						# hit this if there is an error
 
@@ -118,30 +122,61 @@ rm_data:
 	# not sure if this is what is needed for this may need to rewrite this segment
     rm_data_read:
 		ANDI $t0, $s2, 0xFF				# mask only operand of instruction
-		LI $t1, 0x01		
-		BEQ $t1, $s2, rm_data_read_var1	# check to see what variable 1 (0x01) or 2 (0x11)
+		LI $t1, 0x10
+		BEQ $t1, $t0, rm_data_read_var1	# check to see what variable 1 (0x01) or 2 (0x11)
 		LI $t1, 0x11
-		BEQ $t1, $s2, rm_data_read_var2
+		BEQ $t1, $t0, rm_data_read_var2
 		J error							# hit this if there is an error
 
 		rm_data_read_var1:
-			
-			
-		rm_data_read_var2:
+			LW $t0,(PORTE)
+			ANDI $t0,0xFF
+			SW $t0,40($a1)
+			J iterate
 
-		J iterate	# rm_data_load is done go to iterate
+		rm_data_read_var2:
+			LW $t0,(PORTE)
+			ANDI $t0,0xFF
+			SW $t0,44($a1)
+			J iterate	# rm_data_load is done go to iterate
 
     rm_data_write:
-
-		J iterate	# rm_data_write is done go to iterate
-
+			LI $t1,0x11
+			BEQ $t1,$s4,write1
+			#write0
+				LW $t0,(PORTE)
+				LW $t1,40($a1)
+				OR $t0,$t1,$t0
+				SW $t0,(PORTE)
+				J iterate	# rm_data_write is done go to iterate
+			write1:
+				LW $t0,(PORTE)
+				LW $t1,44($a1)
+				OR $t0,$t1,$t0
+				SW $t0,(PORTE)
+			J iterate	# rm_data_write is done go to iterate
     rm_data_load:
+			LI $t1,0x11
+			BEQ $t1,$s4,load1
+			#load0
+				LW $s0,40($a1)
+				J iterate	# rm_data_load is done go to iterate
 
-		J iterate	# rm_data_load is done go to iterate
+			load1:
+				LW $s0,44($a1)
+				J iterate	# rm_data_load is done go to iterate
+
+
 
     rm_data_store:
-
-		J iterate	# rm_data_store is done go to iterate
+		LI $t1,0x11
+		BEQ $t1,$s4,store1
+		#store0
+			SW $s0,40($a1)
+			J iterate	# rm_data_store is done go to iterate
+		store1:
+			SW $s0,44($a1)
+			J iterate	# rm_data_store is done go to iterate
 
     J iterate		# catchall for rm_data
 .END rm_data
@@ -149,20 +184,45 @@ rm_data:
 
 .ENT rm_math
 rm_math:
-	ANDI $t0, $s1, 0x0F00			# this segment checks the operation (see rm_data comments)
+	ANDI $t0, $s2, 0x0F00			# this segment checks the operation (see rm_data comments)
 	SRL $t0, 8
     LI $t1, 0
 	BEQ $t0, $t1, rm_math_add
     ADDI $t1, $t1, 1
     BEQ $t0, $t1, rm_math_subtract
 	ADDI $t1, $t1, 1
-	BEQ $t0, $t1, rm_math_multiply 
-	
+	BEQ $t0, $t1, rm_math_multiply
+
 	rm_math_add:
+		LI $t0,0x0011
+		BEQ $t0,$s4,add1
+		#cell zero
+		LW $t1,40($a1)
+		ADDU $s0,$s0,$t1
+		J iterate
+		add1:
+		LW $t1,44($a1)
+		ADDU $s0,$s0,$t1
 		J iterate	# rm_math_add is done go to iterate
 	rm_math_subtract:
+		LI $t0,0x0011
+		BEQ $t0,$s4,sub1
+		#cell zero
+		LW $t1,40($a1)
+		SUBU $s0,$s0,$t1
+		J iterate
+		sub1:
+		LW $t1,44($a1)
 		J iterate	# rm_math_subtract is done go to iterate
 	rm_math_multiply:
+		LI $t0,0x0011
+		BEQ $t0,$s4,mul1
+		#cell zero
+		LW $t1,40($a1)
+		MUL $s0,$s0,$t1
+		J iterate
+		mul1:
+		LW $t1,44($a1)
 		J iterate	# rm_math_multiply is done go to iterate
 
     J iterate		# catchall for rm_math
@@ -171,7 +231,7 @@ rm_math:
 
 .ENT rm_branch
 rm_branch:
-	ANDI $t0, $s1, 0x0F00			# this segment checks the operation (see rm_data comments)
+	ANDI $t0, $s2, 0x0F00			# this segment checks the operation (see rm_data comments)
 	SRL $t0, 8
     LI $t1, 0
     BEQ $t0, $t1, rm_branch_address
@@ -181,19 +241,23 @@ rm_branch:
     BEQ $t0, $t1, rm_branch_not_equal
     ADDI $t1, $t1, 1
     BEQ $t0, $t1, rm_branch_halt
-	
+
 	rm_branch_address:
-		ANDI $t0, $s1, 0x00FF	# 0x3007 branch to cell 7
+		ANDI $t0, $s2, 0x00FF	# 0x3007 branch to cell 7
 		LI $t1, 4				# size of instruction to muliply to
 		MUL $t0, $t0, $t1		# multiply the cell number ($t0) to the size of a word (t1) to get the byte address of the program counter
-		ADDI $s2, $t0, $a1		# change program counter
+        LI $t2, 0xA0000200
+        OR $a1, $t0, $t2
+#		ADDI $s2, $t0, $a1		# change program counter
 		J loop
 	rm_branch_equal:
-
+		BEQZ $s0,rm_branch_address
+		J iterate
 	rm_branch_not_equal:
-
+		BEQZ $s0,iterate
+		J rm_branch_address
     rm_branch_halt:
-    J stop    
+    J stop
 
     J iterate
 .END rm_branch
@@ -202,7 +266,7 @@ rm_branch:
 
 .ENT rm_control
 rm_control:
-    ANDI $t0, $s1, 0x0F00
+    ANDI $t0, $s2, 0x0F00
     SRL $t0, 8
     LI $t1, 0
     BEQ $t0, $t1, rm_control_left
@@ -216,15 +280,115 @@ rm_control:
 	BEQ $t0, $t1, rm_control_brake
 
 	rm_control_left:
-	
+		#No robot so instead we turn PERF LD 3 on
+			LI $t0,0b1000
+			SW $t0,(LATB)
+			# Count
+		    MOVE $t6,$zero
+		    # Max
+		    MOVE $t7,$zero
+		    ADDI $t7, 32767
+
+		    loop0:
+		   	 ADDI $t6,1
+		   	 BEQ $t6,$t7,end0
+		   	 NOP
+		   	 NOP
+		   	 NOP
+		   	 NOP
+		    J loop0
+			end0:
+				LI $t0,0x0
+				SW $t0,(LATB)
+				J iterate
 	rm_control_right:
+			#No robot so instead we turn PERF LD 0 on
+			LI $t0,0b0001
+			SW $t0,(LATB)
+			# Count
+		    MOVE $t6,$zero
+		    # Max
+		    MOVE $t7,$zero
+		    ADDI $t7, 32767
+
+		    loop1:
+		   	 ADDI $t6,1
+		   	 BEQ $t6,$t7,end1
+		   	 NOP
+		   	 NOP
+		   	 NOP
+		   	 NOP
+		    J loop1
+			end1:
+				LI $t0,0x0
+				SW $t0,(LATB)
+				J iterate
 
 	rm_control_foreward:
+		#No robot so instead we have PERF LD 1 and 2 blink
+			LI $t3,0
+			start2:
+			LI $t0,0b0110
+			SW $t0,(LATB)
+			# Count
+		    MOVE $t6,$zero
+		    # Max
+		    MOVE $t7,$zero
+		    ADDI $t7, 16000
 
+		    loop2:
+		   	 ADDI $t6,1
+		   	 BEQ $t6,$t7,end2
+		   	 NOP
+		   	 NOP
+		   	 NOP
+		   	 NOP
+		    J loop2
+			end2:
+				LI $t0,0x0
+				SW $t0,(LATB)
+				MOVE $t6,$zero
+			    # Max
+			    MOVE $t7,$zero
+			    ADDI $t7, 16000
+
+			    loop3:
+			   	 ADDI $t6,1
+			   	 BEQ $t6,$t7,end3
+			   	 NOP
+			   	 NOP
+			   	 NOP
+			   	 NOP
+			    J loop3
+			end3:
+				LI $t2,1
+				ADDI $t3,1
+				BEQ $t2,$t3,start2
+				J iterate
 	rm_control_backward:
+		#No robot so instead we turn PERF LD 1 and 2 on
+			LI $t0,0b0110
+			SW $t0,(LATB)
+			# Count
+		    MOVE $t6,$zero
+		    # Max
+		    MOVE $t7,$zero
+		    ADDI $t7, 32767
 
+		    loop4:
+		   	 ADDI $t6,1
+		   	 BEQ $t6,$t7,end4
+		   	 NOP
+		   	 NOP
+		   	 NOP
+		   	 NOP
+		    J loop4
+			end4:
+				LI $t0,0x0
+				SW $t0,(LATB)
+				J iterate
 	rm_control_brake:
-
+		#no instructions for break I guess
 	J iterate
 .END rm_control
 
