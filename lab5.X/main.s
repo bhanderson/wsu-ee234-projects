@@ -92,7 +92,7 @@ rm_search_program:
 
 	rm_search_program_done:
 		ADDI $t0, $t0, 4	# increment t0 by 4 to put it at the first variable
-		ADDI $s4, $t0, 0	# store t0 to s4(operand register) to preserve
+		ADDI $a2, $t0, 0	# store t0 to a0(operand register) to preserve
 		JR $ra				# jump back to what called search
 .END rm_search_program
 
@@ -131,13 +131,16 @@ rm_data:
 		rm_data_read_var1:
 			LW $t0,(PORTE)
 			ANDI $t0,0xFF
-			SW $t0,40($a1)
+            ADD $t1, $a1, $a2
+			SW $s0,($t1)
 			J iterate
 
 		rm_data_read_var2:
 			LW $t0,(PORTE)
 			ANDI $t0,0xFF
-			SW $t0,44($a1)
+            ADD $t1, $a1, $a2
+            ADDI $t1, $t1, 4
+			SW $s0,($t1)
 			J iterate	# rm_data_load is done go to iterate
 
     rm_data_write:
@@ -145,25 +148,31 @@ rm_data:
 			BEQ $t1,$s4,write1
 			#write0
 				LW $t0,(PORTE)
-				LW $t1,40($a1)
+                ADD $t2, $a1, $a2
+				LW $t1,($t2)
 				OR $t0,$t1,$t0
 				SW $t0,(PORTE)
 				J iterate	# rm_data_write is done go to iterate
 			write1:
 				LW $t0,(PORTE)
-				LW $t1,44($a1)
+                ADD $t2, $a1, $a2
+                ADDI $t2, $t2, 4
+				LW $t1,($t2)
 				OR $t0,$t1,$t0
 				SW $t0,(PORTE)
 			J iterate	# rm_data_write is done go to iterate
     rm_data_load:
 			LI $t1,0x11
 			BEQ $t1,$s4,load1
-			#load0
-				LW $s0,40($a1)
+            #load0
+            ADD $t2, $a1, $a2
+			LW $s0,($t2)
 				J iterate	# rm_data_load is done go to iterate
 
 			load1:
-				LW $s0,44($a1)
+                ADD $t2, $a1, $a2
+                ADDI $t2, $t2, 4
+				LW $s0,($t2)
 				J iterate	# rm_data_load is done go to iterate
 
 
@@ -172,10 +181,13 @@ rm_data:
 		LI $t1,0x11
 		BEQ $t1,$s4,store1
 		#store0
-			SW $s0,40($a1)
+            ADD $t2, $a1, $a2
+			SW $s0,($t2)
 			J iterate	# rm_data_store is done go to iterate
 		store1:
-			SW $s0,44($a1)
+			ADD $t2, $a1, $a2
+            ADDI $t2, $t2, 4
+			SW $s0,($t2)
 			J iterate	# rm_data_store is done go to iterate
 
     J iterate		# catchall for rm_data
@@ -197,7 +209,8 @@ rm_math:
 		LI $t0,0x0011
 		BEQ $t0,$s4,add1
 		#cell zero
-		LW $t1,40($a1)
+        ADD $t2, $a1, $a2
+		LW $t1,($t2)
 		ADDU $s0,$s0,$t1
 		J iterate
 		add1:
@@ -208,7 +221,8 @@ rm_math:
 		LI $t0,0x0011
 		BEQ $t0,$s4,sub1
 		#cell zero
-		LW $t1,40($a1)
+        ADD $t2, $a1, $a2
+		LW $t1,($t2)
 		SUBU $s0,$s0,$t1
 		J iterate
 		sub1:
@@ -218,7 +232,8 @@ rm_math:
 		LI $t0,0x0011
 		BEQ $t0,$s4,mul1
 		#cell zero
-		LW $t1,40($a1)
+        ADD $t2, $a1, $a2
+		LW $t1,($t2)
 		MUL $s0,$s0,$t1
 		J iterate
 		mul1:
