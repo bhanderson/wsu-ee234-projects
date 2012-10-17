@@ -228,7 +228,8 @@ rm_math:
 		SUBU $s0,$s0,$t1
 		J iterate
 		sub1:
-		LW $t1,44($a1)
+        ADD $t2, $a1, $a2
+		LW $t1,4($t2)
 		J iterate	# rm_math_subtract is done go to iterate
 	rm_math_multiply:
 		LI $t0,0x0011
@@ -239,7 +240,8 @@ rm_math:
 		MUL $s0,$s0,$t1
 		J iterate
 		mul1:
-		LW $t1,44($a1)
+        ADD $t2, $a1, $a2
+		LW $t1,4($t2)
 		J iterate	# rm_math_multiply is done go to iterate
 
     J iterate		# catchall for rm_math
