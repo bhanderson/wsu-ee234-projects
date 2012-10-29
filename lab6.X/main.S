@@ -115,12 +115,13 @@ main:
                         BEQZ t1,continue
                         J stopdouble
                     continue:
-                        LI t0,2 # if timer is already paused clear the value
-                        BEQ a1,t0,clearit
-                        LI a1,2 #otherwise set a1 to 2 to pause count.
+                        # in the case that timer is already paused clear the value
+                        BGTZ a2,clearit
+                        LI a1,2 #otherwise set a1 to 2 to pause count
+                        LI a2,1 #set a2 to 1 to indicate pause state; reset by timer tick
                         J loop
                      clearit:
-                        LI t0,0
+                        LI a0,0
                         SLL t4,a0,10
                         SW t4,(LATB)
                         J loop
@@ -386,6 +387,8 @@ Timer1IntHandler:
         clear:
         LI a0,0
         noclear:
+        LI a2,0
+        SW a2,20(sp)
         SW a0,12(sp)
         LI t4, 0
         LW t3, (LATB)
@@ -401,6 +404,8 @@ Timer1IntHandler:
         reset:
         LI a0,15
         noreset:
+        LI a2,0
+        SW a2,20(sp)
         SW a0,12(sp)
         SLL t4,a0,10
         SW t4,(LATB)
