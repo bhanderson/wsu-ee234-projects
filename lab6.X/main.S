@@ -84,10 +84,50 @@ main:
 
 	EI	# Enable system wide interrupts
 
-	loop:
+		loop:
 		# Event loop
-		J loop      # Embedded programs require that they run forever So jump back to the beginning of the loop
+        #loop for 100 cycles waiting and storing input into t1
+        LI t0,100
+        LI t1,0
+        internal:
+            LW t1,(PORTA)
+            ANDI t1,0xC0
+            ADDI t0,t0,-1
+            BEQZ t0,switch
+            J internal
+        switch:
+            BEQZ t1,loop    #do nothing
+            LI t0,0x80
+            BEQ t1,t0,btn2  #btn 2 pressed
+            ADDI t0,t0,0x40
+            BEQ t0,t1,both #both pressed
+            J btn1 #btn 1 pressed
+                btn2:
+                    LI a1,1
+                    J loop
+                btn1:
+                    LI a1,0
+                    J loop
+                both:
+                    stopdouble:   #while any buttons are still pressed do nothing
+                        LW t1,(PORTA)
+                        ANDI t1,0xc0
+                        BEQZ t1,continue
+                        J stopdouble
+                    continue:
+                        LI t0,2 # if timer is already paused clear the value
+                        BEQ a1,t0,clearit
+                        LI a1,2 #otherwise set a1 to 2 to pause count.
+                        J loop
+                     clearit:
+                        LI t0,0
+                        SLL t4,a0,10
+                        SW t4,(LATB)
+                        J loop
 
+
+
+		J loop      # Embedded programs require that they run forever So jump back to the beginning of the loop
 .END main
 
 # ***************************************************************************************************************************
