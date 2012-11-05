@@ -282,6 +282,12 @@ rm_control:
 .END rm_control
 
 
+.ENT rm_control_advanced
+rm_control_advanced:
+	
+.END rm_control_advanced
+
+
 .ENT port_setup
 port_setup:
 	# Set these to pins to outputs
