@@ -7,6 +7,8 @@ program: .word 0x1011, 0x1211, 0x2110, 0x3106, 0x4190, 0x3007, 0x4910, 0x4201, 0
 
 .ENT main					# Setup a main entry point
 main:
+	JAL port_setup
+
     LA $a1, program			# Load the program instructions into program memory
     LI $s1, 0
 
@@ -379,3 +381,28 @@ rm_control:
 		#no instructions for break I guess
 	J iterate
 .END rm_control
+
+
+.ENT port_setup
+port_setup:
+	# Set these to pins to outputs
+	# First Motor H-bridge: DIR - RG09; EN RG09
+	LI t0, 1 << 9
+	SW t0, TRISGCLR
+	LI t0, 1 << 8
+	SW t0, TRISGCLR
+	# Second Motor H-bridge: DIR - RB15; EN RD05
+	LI t0, 1 << 15
+	SW t0, TRISBCLR
+	LI t0, 1 << 5
+	SW t0, TRISDCLR
+	
+	# LEDs LD4:1 RB13:10 - digital output
+	LA s0, TRISB
+	LW t0, (s0)
+	ANDI t0, t0, 0x3C00
+	SW t0, (s0)
+
+	JR ra
+
+.END port_setup
