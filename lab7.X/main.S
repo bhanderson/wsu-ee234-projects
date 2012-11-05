@@ -238,7 +238,6 @@ rm_branch:
 		MUL $t0, $t0, $t1		# multiply the cell number ($t0) to the size of a word (t1) to get the byte address of the program counter
         LI $t2, 0xA0000200
         OR $a1, $t0, $t2
-#		ADDI $s2, $t0, $a1		# change program counter
 		J loop
 	rm_branch_equal:
 		BEQZ $s0,rm_branch_address
@@ -247,7 +246,7 @@ rm_branch:
 		BEQZ $s0,iterate
 		J rm_branch_address
     rm_branch_halt:
-    J stop
+	    J stop
 
     J iterate
 .END rm_branch
@@ -270,116 +269,16 @@ rm_control:
 	BEQ $t0, $t1, rm_control_brake
 
 	rm_control_left:
-		#No robot so instead we turn PERF LD 3 on
-			LI $t0,0b1000
-			SW $t0,(LATB)
-			# Count
-		    MOVE $t6,$zero
-		    # Max
-		    MOVE $t7,$zero
-		    ADDI $t7, 32767
-
-		    loop0:
-		   	 ADDI $t6,1
-		   	 BEQ $t6,$t7,end0
-		   	 NOP
-		   	 NOP
-		   	 NOP
-		   	 NOP
-		    J loop0
-			end0:
-				LI $t0,0x0
-				SW $t0,(LATB)
-				J iterate
+		J iterate
 	rm_control_right:
-			#No robot so instead we turn PERF LD 0 on
-			LI $t0,0b0001
-			SW $t0,(LATB)
-			# Count
-		    MOVE $t6,$zero
-		    # Max
-		    MOVE $t7,$zero
-		    ADDI $t7, 32767
-
-		    loop1:
-		   	 ADDI $t6,1
-		   	 BEQ $t6,$t7,end1
-		   	 NOP
-		   	 NOP
-		   	 NOP
-		   	 NOP
-		    J loop1
-			end1:
-				LI $t0,0x0
-				SW $t0,(LATB)
-				J iterate
+		J iterate
 
 	rm_control_foreward:
-		#No robot so instead we have PERF LD 1 and 2 blink
-			LI $t3,0
-			start2:
-			LI $t0,0b0110
-			SW $t0,(LATB)
-			# Count
-		    MOVE $t6,$zero
-		    # Max
-		    MOVE $t7,$zero
-		    ADDI $t7, 16000
-
-		    loop2:
-		   	 ADDI $t6,1
-		   	 BEQ $t6,$t7,end2
-		   	 NOP
-		   	 NOP
-		   	 NOP
-		   	 NOP
-		    J loop2
-			end2:
-				LI $t0,0x0
-				SW $t0,(LATB)
-				MOVE $t6,$zero
-			    # Max
-			    MOVE $t7,$zero
-			    ADDI $t7, 16000
-
-			    loop3:
-			   	 ADDI $t6,1
-			   	 BEQ $t6,$t7,end3
-			   	 NOP
-			   	 NOP
-			   	 NOP
-			   	 NOP
-			    J loop3
-			end3:
-				LI $t2,1
-				ADDI $t3,1
-				BEQ $t2,$t3,start2
-				J iterate
+		J iterate
 	rm_control_backward:
-		#No robot so instead we turn PERF LD 1 and 2 on
-			LI $t0,0b0110
-			SW $t0,(LATB)
-			# Count
-		    MOVE $t6,$zero
-		    # Max
-		    MOVE $t7,$zero
-		    ADDI $t7, 32767
-
-		    loop4:
-		   	 ADDI $t6,1
-		   	 BEQ $t6,$t7,end4
-		   	 NOP
-		   	 NOP
-		   	 NOP
-		   	 NOP
-		    J loop4
-			end4:
-				LI $t0,0x0
-				SW $t0,(LATB)
-				J iterate
+		J iterate
 	rm_control_brake:
-		#no instructions for break I guess
-	J iterate
+		J iterate
 .END rm_control
 
 
