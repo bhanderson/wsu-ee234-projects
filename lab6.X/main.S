@@ -464,7 +464,8 @@ setupINT4:
 	# interrupt control register
 	LA s0, INTCON	# Register necessary for setting polarity of interrupt trigger
 	LW t0, (s0)
-	ORI t0, t0, 1 << 4 # enable int external interrupt
+    ANDI t0, t0, 8
+	ORI t0, t0, 8
 	SW t0, (s0)
 	
 	# Pop registers
