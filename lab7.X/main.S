@@ -181,7 +181,6 @@ rm_data:
     J iterate		# catchall for rm_data
 .END rm_data
 
-
 .ENT rm_math
 rm_math:
 	ANDI t0, s2, 0x0F00			# this segment checks the operation (see rm_data comments)
@@ -233,7 +232,6 @@ rm_math:
     J iterate		# catchall for rm_math
 .END rm_math
 
-
 .ENT rm_branch
 rm_branch:
 	ANDI t0, s2, 0x0F00			# this segment checks the operation (see rm_data comments)
@@ -265,8 +263,6 @@ rm_branch:
 
     J iterate
 .END rm_branch
-
-
 
 .ENT rm_control
 rm_control:
@@ -305,7 +301,6 @@ rm_control_advanced:
 	rm_control_advanced_brake:
 	
 .END rm_control_advanced
-
 
 .ENT port_setup
 port_setup:
@@ -353,7 +348,6 @@ setupMultiVectoredMode:
 	JR ra
 
 .END setupMultiVectoredMode
-
 
 .ENT setupTimer1
 setupTimer1:
@@ -427,7 +421,6 @@ enableTimer1Int:
 	JR ra
 	
 .END enableTimer1Int
-
 
 .ENT disableTimer1Int
 disableTimer1Int:
@@ -558,7 +551,6 @@ Timer1IntHandler:
 
 .END Timer1IntHandler
 
-
 .ENT setupTimer2
 setupTimer2:
 
@@ -632,17 +624,15 @@ disableTimer2Int:
 	SW t1, (s0)
 
 	LW s0, 0(sp)
-	ADDI sp, sp, 8
+	ADDI sp, sp, 4
 
 	JR ra
 
 .END disableTimer2Int
 
-
 .SECTION .vector_8, code
 	J Timer2IntHandler
 .TEXT
-
 
 .ENT Timer2IntHandler
 Timer2IntHandler:
