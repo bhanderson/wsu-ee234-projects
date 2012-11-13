@@ -13,7 +13,9 @@
 .GLOBAL main
 .DATA                        # The start of the data segment
 
-program: .word 0x1011, 0x1211, 0x2110, 0x3106, 0x4190, 0x3007, 0x4910, 0x4201, 0x4403, 0x3300, 0x80, 0x00
+#program: .word 0x1011, 0x1211, 0x2110, 0x3106, 0x4190, 0x3007, 0x4090, 0x4201, 0x4403, 0x3300, 0x80, 0x00
+#program: .word 0x4210, 0x4190, 0x4090, 0x4210, 0x4190, 0x4090, 0x4210, 0x4190, 0x4090, 0x0040, 0x0030
+program: .word 0x4090, 0x4210, 0x4190, 0x4210, 0x4090, 0x4210, 0x4190, 0x4210, 0x4090, 0x4210, 0x4190, 0x4210, 0x4090, 0x4210, 0x4190, 0x4210, 0x80, 0x00
 
 .TEXT                       # The start of the code segment
 
@@ -21,11 +23,20 @@ program: .word 0x1011, 0x1211, 0x2110, 0x3106, 0x4190, 0x3007, 0x4910, 0x4201, 0
 main:
 	DI						# Disable system wide interrupts
 
-	JAL disableTimer2Int	# Disable Timer 1 interrupt;
-	JAL disableTimer3Int
-	JAL port_setup
+    JAL port_setup
+    JAL setupMultiVectoredMode
+    JAL setupOutputCompare1Module
+    JAL setupOutputCompare2Module
+    JAL setupTimer2
+    JAL setupTimer3
+    JAL enableOutputCompare1Int
+    JAL enableOutputCompare2Int
+    EI
+
     LA a1, program			# Load the program instructions into program memory
     LI s1, 0
+
+
 
 	loop:
        # fetch instruction
@@ -291,7 +302,7 @@ rm_control:
         SW ra, 4(sp)
         SW a0, 0(sp)
 
-        LI a0,0b101111111
+        LI a0,0b101100011
         JAL start_motor
 
         # Pop registers
@@ -304,7 +315,7 @@ rm_control:
         SW ra, 4(sp)
         SW a0, 0(sp)
 
-        LI,a0,1
+        LI a0,1
         JAL stop_motor
 
         # Pop registers
@@ -319,7 +330,7 @@ rm_control:
         SW ra, 4(sp)
         SW a0, 0(sp)
 
-        LI a0,0b11111111
+        LI a0,0b11100011
         JAL start_motor
 
         # Pop registers
@@ -332,7 +343,7 @@ rm_control:
         SW ra, 4(sp)
         SW a0, 0(sp)
 
-        LI,a0,2
+        LI a0,2
         JAL stop_motor
 
         # Pop registers
@@ -347,7 +358,7 @@ rm_control:
         SW ra, 4(sp)
         SW a0, 0(sp)
 
-        LI a0,0b111111111
+        LI a0,0b111100011
         JAL start_motor
 
         # Pop registers
@@ -363,7 +374,7 @@ rm_control:
         SW ra, 4(sp)
         SW a0, 0(sp)
 
-        LI,a0,3
+        LI a0,3
         JAL stop_motor
 
         # Pop registers
@@ -442,7 +453,7 @@ rm_control_advanced:
         ADDI sp, sp, 8
 	rm_control_advanced_foreward:
 	rm_control_advanced_brake:
-	
+
 .END rm_control_advanced
 .ENT stop_motor
 stop_motor:
@@ -451,21 +462,21 @@ stop_motor:
     ADDI t0,t0,1
     BEQ t0,a0,stopright
     stop_both:
-        LI t0, 2
-        SW t0, TRISGSET
-        LI t0, 1 << 13
+        LI t0, 1 << 5
+        SW t0, TRISDSET
+        LI t0, 1 << 8
         SW t0, TRISGSET
         JR ra
     stopleft:
-        LI t0, 2
-        SW t0, TRISGSET
+        LI t0, 1 << 5
+        SW t0, TRISDSET
         JR ra
     stopright:
-        LI t0, 1 << 13
+        LI t0, 1 << 8
         SW t0, TRISGSET
         JR ra
 .END stop_motor
-.ENT start_motor:
+.ENT start_motor
 start_motor:
     #arguments are stored in a0
     # 6:0 = speed (0-99)
@@ -478,48 +489,42 @@ start_motor:
     BEQ t1,t0,startboth
     startright:
         ANDI t0,a0,0x7F
-        MUL t0,t0,100
+        MUL t0,t0,10
         SW t0,OC2RS
-        LI t0, 1 << 13
+        LI t0, 1 << 8
         SW t0, TRISGCLR
         JR ra
     startleft:
         ANDI t0,a0,0x7F
-        MUL t0,t0,100
+        MUL t0,t0,10
         SW t0,OC1RS
-        LI t0, 2
-        SW t0, TRISGCLR
+        LI t0, 1 << 5
+        SW t0, TRISDCLR
         JR ra
     startboth:
         ANDI t0,a0,0x7F
-        MUL t0,t0,100
+        MUL t0,t0,10
         SW t0,OC1RS
         SW t0,OC2RS
-        LI t0, 1 << 13
+        LI t0, 1 << 8
         SW t0, TRISGCLR
-        LI t0, 2
-        SW t0, TRISGCLR
+        LI t0, 1 << 5
+        SW t0, TRISDCLR
         JR ra
-.END start_motors
+.END start_motor
 .ENT port_setup
 port_setup:
 	# Set these to pins to outputs
 	# First Motor H-bridge: DIR - RG09; EN RG09
-	LI t0, 1 << 12
+	LI t0, 1 << 9
 	SW t0, TRISGCLR
-	LI t0, 1 << 13
+	LI t0, 1 << 8
 	SW t0, TRISGCLR
 	# Second Motor H-bridge: DIR - RB15; EN RD05
-	LI t0, 1
-	SW t0, TRISGCLR
-	LI t0, 2
-	SW t0, TRISGCLR
-	
-	# LEDs LD4:1 RB13:10 - digital output
-	LA s0, TRISB
-	LW t0, (s0)
-	ANDI t0, t0, 0x3C00
-	SW t0, (s0)
+	LI t0, 1 << 15
+	SW t0, TRISBCLR
+	LI t0, 1 << 5
+	SW t0, TRISDCLR
 
 	JR ra
 
@@ -532,7 +537,7 @@ setupMultiVectoredMode:
 	ADDI sp, sp, -8
 	SW ra, 4(sp)
 	SW s0, 0(sp)
-	
+
 	# Interrupt control register
 	LA s0, INTCON # Register necessary for setting multi-vectored mode
 	LW t0, (s0)
@@ -543,7 +548,7 @@ setupMultiVectoredMode:
 	LW s0, 0(sp)
 	LW ra, 4(sp)
 	ADDI sp, sp, 8
-	
+
 	JR ra
 
 .END setupMultiVectoredMode
@@ -560,14 +565,14 @@ setupOutputCompare1Module:
 	LA s0, OC1CON # Output compare 1 control register
 	MOVE t0, zero
 	SW t0, (s0)
-	
+
 	# Initialize the OC1R register before the output compare module, this register determins duty cycle
 	LA s0, OC1R
-	LI t0, 0x0 # Shoot for 0% duty cycle, PR2 - 10,000
+	LI t0, 5000 # Shoot for 50% duty cycle, PR2 - 10,000
 	SW t0, (s0)
 	# The OC1RS secondary output compare register will contain the actual duty cycle
 	LA s0, OC1RS
-	LI t0, 0x0 # Shoot for 0% duty cycle
+	LI t0, 5000 # Shoot for 50% duty cycle
 	SW t0, (s0)
 
 	# Now configure the compare module using OC1CON
@@ -580,7 +585,7 @@ setupOutputCompare1Module:
 	ORI t0, t0, 6 # PWM mode
 	ORI t0, t0, 1 << 15 # Enable output compare module
 	SW t0, (s0)
-	
+
 	# Set priority of compare match interrupt IPC1<20:18>
 	LA s0, IPC1SET
 	LI t0, 6 # priority 6
@@ -591,19 +596,19 @@ setupOutputCompare1Module:
 	LW s0, 0(sp)
 	LW ra, 4(sp)
 	ADDI sp, sp, 8
-	
+
 	JR ra
-	
+
 .END setupOutputCompare1Module
 
 .ENT enableOutputCompare1Int
 enableOutputCompare1Int:
-	
+
 	# Preserve registers - push to stack
 	ADDI sp, sp, -8
 	SW ra, 4(sp)
 	SW s0, 0(sp)
-	
+
 	LA s0, IEC0 # Interrupt enable control register - our mask register
 	LW t0, (s0)
 	ORI t0, t0, 1 << 6 # Set corresponding mask bit to 1 to enable, 6 is Output Compare Interrupt Enable 1 (OCIE1)
@@ -613,9 +618,9 @@ enableOutputCompare1Int:
 	LW s0, 0(sp)
 	LW ra, 4(sp)
 	ADDI sp, sp, 8
-	
+
 	JR ra
-	
+
 
 .END enableOutputCompare1Int
 
@@ -669,14 +674,15 @@ OutputCompare1IntHandler:
 	# Clear Output Compare 1 Interrupt status flag
 	LA t0, IFS0CLR
 	LW t1, (t0)
-	ORI t1, t1, 1 << 6 
+	ORI t1, t1, 1 << 6
 	SW t1, (t0)
 
 	# Can set new duty cycle in this handler
 	# Use OC1RS, the secondary compare register
-	
-	LA t0, LATGINV
-	LI t1, 3
+
+
+	LA t0, LATDINV
+	LI t1, 1 << 5
 	SW t1, (t0)
 
 	ADDU sp, s8, zero
@@ -721,14 +727,14 @@ setupOutputCompare2Module:
 	LA s0, OC2CON # Output compare 1 control register
 	MOVE t0, zero
 	SW t0, (s0)
-	
-	# Initialize the OC1R register before the output compare module, this register determins duty cycle
+
+	# Initialize the OC2R register before the output compare module, this register determins duty cycle
 	LA s0, OC2R
-	LI t0, 0x0 # Shoot for 0% duty cycle, PR2 - 10,000
+	LI t0, 5000 # Shoot for 50% duty cycle, PR2 - 10,000
 	SW t0, (s0)
-	# The OC1RS secondary output compare register will contain the actual duty cycle
+	# The OC2RS secondary output compare register will contain the actual duty cycle
 	LA s0, OC2RS
-	LI t0, 0x0 # Shoot for 0% duty cycle
+	LI t0, 5000 # Shoot for 50% duty cycle
 	SW t0, (s0)
 
 	# Now configure the compare module using OC1CON
@@ -742,7 +748,7 @@ setupOutputCompare2Module:
 	ORI t0, t0, 1 << 15 # Enable output compare module
 	ORI t0, t0, 1 << 3  # Timer 3 clk src
 	SW t0, (s0)
-	
+
 	# Set priority of compare match interrupt IPC1<20:18>
 	LA s0, IPC2SET
 	LI t0, 6 # priority 6
@@ -753,20 +759,20 @@ setupOutputCompare2Module:
 	LW s0, 0(sp)
 	LW ra, 4(sp)
 	ADDI sp, sp, 8
-	
+
 	JR ra
-	
+
 .END setupOutputCompare2Module
 
 .ENT enableOutputCompare2Int
 enableOutputCompare2Int:
-	
+
 
 	# Preserve registers - push to stack
 	ADDI sp, sp, -8
 	SW ra, 4(sp)
 	SW s0, 0(sp)
-	
+
 	LA s0, IEC0 # Interrupt enable control register - our mask register
 	LW t0, (s0)
 	ORI t0, t0, 1 << 10 # Set corresponding mask bit to 1 to enable, 6 is Output Compare Interrupt Enable 1 (OCIE1)
@@ -776,9 +782,9 @@ enableOutputCompare2Int:
 	LW s0, 0(sp)
 	LW ra, 4(sp)
 	ADDI sp, sp, 8
-	
+
 	JR ra
-	
+
 .END enableOutputCompare2Int
 
 .SECTION .vector_10, code
@@ -831,14 +837,14 @@ OutputCompare2IntHandler:
 	# Clear Output Compare 1 Interrupt status flag
 	LA t0, IFS0CLR
 	LW t1, (t0)
-	ORI t1, t1, 1 << 10 
+	ORI t1, t1, 1 << 10
 	SW t1, (t0)
 
 	# Can set new duty cycle in this handler
 	# Use OC1RS, the secondary compare register
-	
+
 	LA t0, LATGINV
-	LI t1, 1 << 13
+	LI t1, 1 << 8
 	SW t1, (t0)
 
 	ADDU sp, s8, zero
@@ -884,23 +890,17 @@ setupTimer3:
 	# Bit 15 - ON Timer On bit, 1 = timer enable, 0 disabled
 	LA s0, T3CON
 	SW zero, (s0) # stop timer 3
-	
-	LA s0, TMR2
+
+	LA s0, TMR3
 	SW zero, (s0) # clear timer value
 
 	LA s0, PR3
 	LI t0, 0x2710 # Period register of 10,000 base 10
 	SW t0, (s0)
-	
+
 	# turn on and set pbclk / 64, 16 bit timer mode, use pbclk
 	LA s0, T3CON
 	LI t0, 0x8050
-	SW t0, (s0)
-
-	# Set priority
-	LA s0, IPC3			# Interrupt priority register for Timer 3
-	LW t0, (s0)
-	ORI t0, t0, 6 << 2	# priority of 6
 	SW t0, (s0)
 
 	# pop register
@@ -910,40 +910,6 @@ setupTimer3:
 	JR ra
 
 .END setupTimer3
-
-.ENT enableTimer3Int
-enableTimer3Int:
-
-	ADDI sp, sp, -4
-	SW s0, 0(sp)
-	
-	LA s0, IEC0
-	
-	LW t0, (s0)
-	ORI t0, t0, 1 << 12 # mas 1 to enable, 12 is T3IE position
-	SW t0, (s0)
-
-	LW s0, 0(sp)
-	ADDI sp, sp, 4
-
-.END enableTimer3Int
-
-.ENT disableTimer3Int
-disableTimer3Int:
-	
-	ADDI sp, sp, -4
-	SW s0, 0(sp)
-	
-	LA s0, IEC0CLR		# clear bit disable Timer 2 interrupt
-	LI t1, 1 << 12
-	SW t1, (s0)
-
-	LW s0, 0(sp)
-	ADDI sp, sp, 4
-
-	JR ra
-
-.END disableTimer3Int
 
 .ENT setupTimer2
 setupTimer2:
@@ -968,11 +934,6 @@ setupTimer2:
 	LI t0, 0x8050	# PBCLK /16, TMR2 on
 	SW t0, (s0)
 
-	# Set priority
-	LA s0, IPC2			# Interrupt priority register for Timer 2
-	LW t0, (s0)			# IPC2 T2IP <4:2> for Timer 2
-	ORI t0, t0, 6 << 2	# priority 6
-	SW t0, (s0)
 
 	# Pop registers
 	LW s0, 0(sp)
@@ -981,39 +942,3 @@ setupTimer2:
 	JR ra
 
 .END setupTimer2
-
-.ENT enableTimer2Int
-enableTimer2Int:
-
-	ADDI sp, sp, -4
-	SW s0, 0(sp)
-
-	LA s0, IEC0
-
-	LW t0, (s0)
-	ORI t0, t0, 1 << 8	# mask 1 to enable, 8 is T2IE positioni
-	SW t0, (s0)
-
-	LW s0, 0(sp)
-	ADDI sp, sp, 4
-
-	JR ra
-.END enableTimer2Int
-
-
-.ENT disableTimer2Int
-disableTimer2Int:
-	
-	ADDI sp, sp, -4
-	SW s0, 0(sp)
-
-	LA s0, IEC0CLR		# clear bit disable Timer 2 interrupt
-	LI t1, 1 << 8
-	SW t1, (s0)
-
-	LW s0, 0(sp)
-	ADDI sp, sp, 4
-
-	JR ra
-
-.END disableTimer2Int
