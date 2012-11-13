@@ -21,8 +21,8 @@ program: .word 0x1011, 0x1211, 0x2110, 0x3106, 0x4190, 0x3007, 0x4910, 0x4201, 0
 main:
 	DI						# Disable system wide interrupts
 
-	JAL disableTimer2Int	# Disable Timer 1 interrupt;
-	JAL disableTimer3Int
+	JAL disableTimer1Int	# Disable Timer 1 interrupt;
+	JAL disableTimer2Int
 	JAL port_setup
     LA a1, program			# Load the program instructions into program memory
     LI s1, 0
@@ -50,7 +50,13 @@ main:
 		ADDI a1, a1, 4	# iterate program counter to the next instruction
 
 	end:
-		J loop				# Embedded programs require that they run forever! So jump back to the beginning of the loop
+       LI t0,0xFFFF
+       MOVE t1,zero
+        delay:
+            BEQ t0,t1,loop
+            ADDI t1,t1,1
+            J delay
+        				# Embedded programs require that they run forever! So jump back to the beginning of the loop
 
 	error:					# this lable starts the error sequence flashing the led pmods very quickly
 		LI t0, 0xF
@@ -83,6 +89,7 @@ rm_search_program:
 		ADDI a2, t0, 0	# store t0 to a0(operand register) to preserve
 		JR ra				# jump back to what called search
 .END rm_search_program
+
 
 .ENT rm_data
 rm_data:
@@ -279,15 +286,90 @@ rm_control:
 	BEQ t0, t1, rm_control_brake
 
 	rm_control_left:
+        # Preserve registers - push to stack
+        ADDI sp, sp, -8
+        SW ra, 4(sp)
+        SW a0, 0(sp)
+
+        LI a0,0b101111111
+        JAL start_motor
+
+        # Pop registers
+        LW a0, 0(sp)
+        LW ra, 4(sp)
+        ADDI sp, sp, 8
+
+        # Preserve registers - push to stack
+        ADDI sp, sp, -8
+        SW ra, 4(sp)
+        SW a0, 0(sp)
+
+        LI,a0,1
+        JAL stop_motor
+
+        # Pop registers
+        LW a0, 0(sp)
+        LW ra, 4(sp)
+        ADDI sp, sp, 8
+
 		J iterate
 	rm_control_right:
+        # Preserve registers - push to stack
+        ADDI sp, sp, -8
+        SW ra, 4(sp)
+        SW a0, 0(sp)
+
+        LI a0,0b11111111
+        JAL start_motor
+
+        # Pop registers
+        LW a0, 0(sp)
+        LW ra, 4(sp)
+        ADDI sp, sp, 8
+
+        # Preserve registers - push to stack
+        ADDI sp, sp, -8
+        SW ra, 4(sp)
+        SW a0, 0(sp)
+
+        LI,a0,2
+        JAL stop_motor
+
+        # Pop registers
+        LW a0, 0(sp)
+        LW ra, 4(sp)
+        ADDI sp, sp, 8
 		J iterate
 
 	rm_control_foreward:
-		J iterate
+		# Preserve registers - push to stack
+        ADDI sp, sp, -8
+        SW ra, 4(sp)
+        SW a0, 0(sp)
+
+        LI a0,0b111111111
+        JAL start_motor
+
+        # Pop registers
+        LW a0, 0(sp)
+        LW ra, 4(sp)
+        ADDI sp, sp, 8
+        J iterate
 	rm_control_backward:
-		J iterate
+        J iterate
 	rm_control_brake:
+		# Preserve registers - push to stack
+        ADDI sp, sp, -8
+        SW ra, 4(sp)
+        SW a0, 0(sp)
+
+        LI,a0,3
+        JAL stop_motor
+
+        # Pop registers
+        LW a0, 0(sp)
+        LW ra, 4(sp)
+        ADDI sp, sp, 8
 		J iterate
 .END rm_control
 
@@ -295,25 +377,143 @@ rm_control:
 .ENT rm_control_advanced
 rm_control_advanced:
 	rm_control_advanced_left:
+        #first we start one motor at 100%
+        # Preserve registers - push to stack
+        ADDI sp, sp, -8
+        SW ra, 4(sp)
+        SW a0, 0(sp)
+
+        LI a0,0b101111111
+        JAL start_motor
+
+        # Pop registers
+        LW a0, 0(sp)
+        LW ra, 4(sp)
+        ADDI sp, sp, 8
+
+        #then we set the other motor at the percentage necessary
+        ADDI sp, sp, -8
+        SW ra, 4(sp)
+        SW a0, 0(sp)
+
+        LI a0,0b010000000
+        ANDI t0,s4,0xF
+        ADD a0,t0,a0
+        SRL t0,s4,4
+        MUL t0,t0,10
+        ADD a0,t0,a0
+        JAL start_motor
+
+        # Pop registers
+        LW a0, 0(sp)
+        LW ra, 4(sp)
+        ADDI sp, sp, 8
 	rm_control_advanced_right:
+        #first we start one motor at 100%
+        # Preserve registers - push to stack
+        ADDI sp, sp, -8
+        SW ra, 4(sp)
+        SW a0, 0(sp)
+
+        LI a0,0b11111111
+        JAL start_motor
+
+        # Pop registers
+        LW a0, 0(sp)
+        LW ra, 4(sp)
+        ADDI sp, sp, 8
+
+        #then we set the other motor at the percentage necessary
+        ADDI sp, sp, -8
+        SW ra, 4(sp)
+        SW a0, 0(sp)
+
+        LI a0,0b100000000
+        ANDI t0,s4,0xF
+        ADD a0,t0,a0
+        SRL t0,s4,4
+        MUL t0,t0,10
+        ADD a0,t0,a0
+        JAL start_motor
+
+        # Pop registers
+        LW a0, 0(sp)
+        LW ra, 4(sp)
+        ADDI sp, sp, 8
 	rm_control_advanced_foreward:
 	rm_control_advanced_brake:
 	
 .END rm_control_advanced
-
+.ENT stop_motor
+stop_motor:
+    LI t0,1
+    BEQ t0,a0,stopleft
+    ADDI t0,t0,1
+    BEQ t0,a0,stopright
+    stop_both:
+        LI t0, 2
+        SW t0, TRISGSET
+        LI t0, 1 << 13
+        SW t0, TRISGSET
+        JR ra
+    stopleft:
+        LI t0, 2
+        SW t0, TRISGSET
+        JR ra
+    stopright:
+        LI t0, 1 << 13
+        SW t0, TRISGSET
+        JR ra
+.END stop_motor
+.ENT start_motor:
+start_motor:
+    #arguments are stored in a0
+    # 6:0 = speed (0-99)
+    # 8:7 = wheel 3 = both, 2 = right, 1 = left
+    # 9 = direction 1 = forward, 0 = back
+    ANDI t0,a0,0b110000000
+    LI t1,0b10000000
+    BEQ t1,t0,startleft
+    ADDI t1,0b100000000
+    BEQ t1,t0,startboth
+    startright:
+        ANDI t0,a0,0x7F
+        MUL t0,t0,100
+        SW t0,OC2RS
+        LI t0, 1 << 13
+        SW t0, TRISGCLR
+        JR ra
+    startleft:
+        ANDI t0,a0,0x7F
+        MUL t0,t0,100
+        SW t0,OC1RS
+        LI t0, 2
+        SW t0, TRISGCLR
+        JR ra
+    startboth:
+        ANDI t0,a0,0x7F
+        MUL t0,t0,100
+        SW t0,OC1RS
+        SW t0,OC2RS
+        LI t0, 1 << 13
+        SW t0, TRISGCLR
+        LI t0, 2
+        SW t0, TRISGCLR
+        JR ra
+.END start_motors
 .ENT port_setup
 port_setup:
 	# Set these to pins to outputs
-	# First Motor H-bridge: DIR - RG09; EN RG08
-	LI t0, 1 << 9
+	# First Motor H-bridge: DIR - RG09; EN RG09
+	LI t0, 1 << 12
 	SW t0, TRISGCLR
-	LI t0, 1 << 8
+	LI t0, 1 << 13
 	SW t0, TRISGCLR
 	# Second Motor H-bridge: DIR - RB15; EN RD05
-	LI t0, 1 << 15
-	SW t0, TRISBCLR
-	LI t0, 1 << 5
-	SW t0, TRISDCLR
+	LI t0, 1
+	SW t0, TRISGCLR
+	LI t0, 2
+	SW t0, TRISGCLR
 	
 	# LEDs LD4:1 RB13:10 - digital output
 	LA s0, TRISB
@@ -348,402 +548,207 @@ setupMultiVectoredMode:
 
 .END setupMultiVectoredMode
 
-.ENT setupOutputCompare1Module
-setupOutputCompare1Module:
-
-	# Preserve registers - push to stack
-	ADDI sp, sp, -8
-	SW ra, 4(sp)
-	SW s0, 0(sp)
-
-	# Ensure OC1 is off while setting up module 1
-	LA s0, OC1CON # Output compare 1 control register
-	MOVE t0, zero
-	SW t0, (s0)
-	
-	# Initialize the OC1R register before the output compare module, this register determins duty cycle
-	LA s0, OC1R
-	LI t0, 0x0 # Shoot for 0% duty cycle, PR2 - 10,000
-	SW t0, (s0)
-	# The OC1RS secondary output compare register will contain the actual duty cycle
-	LA s0, OC1RS
-	LI t0, 0x0 # Shoot for 0% duty cycle
-	SW t0, (s0)
-
-	# Now configure the compare module using OC1CON
-	# Bits 2:0 - 110 = PWM mode on OC1, 011 = compare event toggles OC1 pin
-	# Bit 3 - 1 = Timer 3 clk src, 0 = Timer 2 clk src
-	# Bit 5 - 1 = 32-bit comparisons, 0 = 16-bit comparisons
-	# Bit 15 - 1 = enable output compare, 0 = disabled, not drawing current
-	LA s0, OC1CON
-	MOVE t0, zero
-	ORI t0, t0, 6 # PWM mode
-	ORI t0, t0, 1 << 15 # Enable output compare module
-	SW t0, (s0)
-	
-	# Set priority of compare match interrupt IPC1<20:18>
-	LA s0, IPC1SET
-	LI t0, 6 # priority 6
-	SLL t0, t0, 18
-	SW t0, (s0)
-
-	# Pop registers
-	LW s0, 0(sp)
-	LW ra, 4(sp)
-	ADDI sp, sp, 8
-	
-	JR ra
-	
-.END setupOutputCompare1Module
-
-.ENT enableOutputCompare1Int
-enableOutputCompare1Int:
-	
-	# Preserve registers - push to stack
-	ADDI sp, sp, -8
-	SW ra, 4(sp)
-	SW s0, 0(sp)
-	
-	LA s0, IEC0 # Interrupt enable control register - our mask register
-	LW t0, (s0)
-	ORI t0, t0, 1 << 6 # Set corresponding mask bit to 1 to enable, 6 is Output Compare Interrupt Enable 1 (OCIE1)
-	SW t0, (s0)
-
-	# Pop registers
-	LW s0, 0(sp)
-	LW ra, 4(sp)
-	ADDI sp, sp, 8
-	
-	JR ra
-	
-
-.END enableOutputCompare1Int
-
-
-.SECTION .vector_6, code
-	J OutputCompare1IntHandler
-.TEXT
-
-.ENT OutputCompare1IntHandler
-OutputCompare1IntHandler:
-
-	# We want our handlers to be as short as possible. We do want them
-	# to execute in as few clock cycles as possible. We generally do
-	# not want to call procedures from within these handlers.
-
-	# Coprocessor 0 is necessary to communciate status and control between
-	# software and CPU. Will uyse Coprocessor 0 registers in the handler.
-	DI	# Disable system wide interrupts
-
-	# Register preservation courtesy of section 8 interrupts ref manual p. 21, 22
-	RDPGPR sp, sp
-	MFC0 k0, $13	# Cause register
-	MFC0 k1, $14	# EPC
-	SRL k0, k0, 0xA
-	ADDIU sp, sp, -76
-	SW k1, 0(sp)
-	MFC0 k1, $12	# Status register
-	SW k1, 4(sp)
-	INS k1, k0, 10, 6
-	INS k1, zero, 1, 4
-	MTC0 k1, $12	# Status register
-	SW s8, 8(sp)
-	SW a0, 12(sp)
-	SW a1, 16(sp)
-	SW a2, 20(sp)
-	SW a3, 24(sp)
-	SW v0, 28(sp)
-	SW v1, 32(sp)
-	SW t0, 36(sp)
-	SW t1, 40(sp)
-	SW t2, 44(sp)
-	SW t3, 48(sp)
-	SW t4, 52(sp)
-	SW t5, 56(sp)
-	SW t6, 60(sp)
-	SW t7, 64(sp)
-	SW t8, 68(sp)
-	SW t9, 72(sp)
-	ADDU s8, sp, zero
-
-	# Clear Output Compare 1 Interrupt status flag
-	LA t0, IFS0CLR
-	LW t1, (t0)
-	ORI t1, t1, 1 << 6 
-	SW t1, (t0)
-
-	# Can set new duty cycle in this handler
-	# Use OC1RS, the secondary compare register
-	
-	LA t0, LATGINV
-	LI t1, 3
-	SW t1, (t0)
-
-	ADDU sp, s8, zero
-	LW t9, 72(sp)
-	LW t8, 68(sp)
-	LW t7, 64(sp)
-	LW t6, 60(sp)
-	LW t5, 56(sp)
-	LW t4, 52(sp)
-	LW t3, 48(sp)
-	LW t2, 44(sp)
-	LW t1, 40(sp)
-	LW t0, 36(sp)
-	LW v1, 32(sp)
-	LW v0, 28(sp)
-	LW a3, 24(sp)
-	LW a2, 20(sp)
-	LW a1, 16(sp)
-	LW a0, 12(sp)
-	LW s8, 8(sp)
-
-	LW k0, 0(sp)
-	MTC0 k0, $14	# EPC register
-	LW k0, 4(sp)
-	MTC0 k0, $12	# Status register
-
-	EI	# Enable system wide interrupts
-
-	ERET # PC = EPC
-
-.END OutputCompare1IntHandler
-
-.ENT setupOutputCompare2Module
-setupOutputCompare2Module:
-
-	# Preserve registers - push to stack
-	ADDI sp, sp, -8
-	SW ra, 4(sp)
-	SW s0, 0(sp)
-
-	# Ensure OC1 is off while setting up module 1
-	LA s0, OC2CON # Output compare 1 control register
-	MOVE t0, zero
-	SW t0, (s0)
-	
-	# Initialize the OC1R register before the output compare module, this register determins duty cycle
-	LA s0, OC2R
-	LI t0, 0x0 # Shoot for 0% duty cycle, PR2 - 10,000
-	SW t0, (s0)
-	# The OC1RS secondary output compare register will contain the actual duty cycle
-	LA s0, OC2RS
-	LI t0, 0x0 # Shoot for 0% duty cycle
-	SW t0, (s0)
-
-	# Now configure the compare module using OC1CON
-	# Bits 2:0 - 110 = PWM mode on OC1, 011 = compare event toggles OC1 pin
-	# Bit 3 - 1 = Timer 3 clk src, 0 = Timer 2 clk src
-	# Bit 5 - 1 = 32-bit comparisons, 0 = 16-bit comparisons
-	# Bit 15 - 1 = enable output compare, 0 = disabled, not drawing current
-	LA s0, OC2CON
-	MOVE t0, zero
-	ORI t0, t0, 6 # PWM mode
-	ORI t0, t0, 1 << 15 # Enable output compare module
-	ORI t0, t0, 1 << 3  # Timer 3 clk src
-	SW t0, (s0)
-	
-	# Set priority of compare match interrupt IPC1<20:18>
-	LA s0, IPC2SET
-	LI t0, 6 # priority 6
-	SLL t0, t0, 18
-	SW t0, (s0)
-
-	# Pop registers
-	LW s0, 0(sp)
-	LW ra, 4(sp)
-	ADDI sp, sp, 8
-	
-	JR ra
-	
-.END setupOutputCompare2Module
-
-.ENT enableOutputCompare2Int
-enableOutputCompare2Int:
-	
+.ENT setupTimer1
+setupTimer1:
 
 	# Preserve registers - push to stack
 	ADDI sp, sp, -8
 	SW ra, 4(sp)
 	SW s0, 0(sp)
 	
-	LA s0, IEC0 # Interrupt enable control register - our mask register
-	LW t0, (s0)
-	ORI t0, t0, 1 << 10 # Set corresponding mask bit to 1 to enable, 6 is Output Compare Interrupt Enable 1 (OCIE1)
+	# T1CON - Control Register for Timer 1
+	# Bit 15 - ON Timer On bit, 1 = timer enabled, 0 = disabled
+	LA s0, T1CON 
+	LI t0, 0x0 # stop Timer 1
 	SW t0, (s0)
 
-	# Pop registers
-	LW s0, 0(sp)
-	LW ra, 4(sp)
-	ADDI sp, sp, 8
-	
-	JR ra
-	
-.END enableOutputCompare2Int
-
-.SECTION .vector_10, code
-	J OutputCompare2IntHandler
-.TEXT
-
-
-.ENT OutputCompare2IntHandler
-OutputCompare2IntHandler:
-
-	# We want our handlers to be as short as possible. We do want them
-	# to execute in as few clock cycles as possible. We generally do
-	# not want to call procedures from within these handlers.
-
-	# Coprocessor 0 is necessary to communciate status and control between
-	# software and CPU. Will uyse Coprocessor 0 registers in the handler.
-	DI	# Disable system wide interrupts
-
-	# Register preservation courtesy of section 8 interrupts ref manual p. 21, 22
-	RDPGPR sp, sp
-	MFC0 k0, $13	# Cause register
-	MFC0 k1, $14	# EPC
-	SRL k0, k0, 0xA
-	ADDIU sp, sp, -76
-	SW k1, 0(sp)
-	MFC0 k1, $12	# Status register
-	SW k1, 4(sp)
-	INS k1, k0, 10, 6
-	INS k1, zero, 1, 4
-	MTC0 k1, $12	# Status register
-	SW s8, 8(sp)
-	SW a0, 12(sp)
-	SW a1, 16(sp)
-	SW a2, 20(sp)
-	SW a3, 24(sp)
-	SW v0, 28(sp)
-	SW v1, 32(sp)
-	SW t0, 36(sp)
-	SW t1, 40(sp)
-	SW t2, 44(sp)
-	SW t3, 48(sp)
-	SW t4, 52(sp)
-	SW t5, 56(sp)
-	SW t6, 60(sp)
-	SW t7, 64(sp)
-	SW t8, 68(sp)
-	SW t9, 72(sp)
-	ADDU s8, sp, zero
-
-	# Clear Output Compare 1 Interrupt status flag
-	LA t0, IFS0CLR
-	LW t1, (t0)
-	ORI t1, t1, 1 << 10 
-	SW t1, (t0)
-
-	# Can set new duty cycle in this handler
-	# Use OC1RS, the secondary compare register
-	
-	LA t0, LATGINV
-	LI t1, 1 << 13
-	SW t1, (t0)
-
-	ADDU sp, s8, zero
-	LW t9, 72(sp)
-	LW t8, 68(sp)
-	LW t7, 64(sp)
-	LW t6, 60(sp)
-	LW t5, 56(sp)
-	LW t4, 52(sp)
-	LW t3, 48(sp)
-	LW t2, 44(sp)
-	LW t1, 40(sp)
-	LW t0, 36(sp)
-	LW v1, 32(sp)
-	LW v0, 28(sp)
-	LW a3, 24(sp)
-	LW a2, 20(sp)
-	LW a1, 16(sp)
-	LW a0, 12(sp)
-	LW s8, 8(sp)
-
-	LW k0, 0(sp)
-	MTC0 k0, $14	# EPC register
-	LW k0, 4(sp)
-	MTC0 k0, $12	# Status register
-
-	EI	# Enable system wide interrupts
-
-	ERET # PC = EPC
-
-.END OutputCompare2IntHandler
-
-
-
-
-.ENT setupTimer3
-setupTimer3:
-
-	ADDI sp, sp, -4
-	SW s0, 0(sp)
-
-	# T3CON - Control Register for Timer 3
-	# Bit 15 - ON Timer On bit, 1 = timer enable, 0 disabled
-	LA s0, T3CON
-	SW zero, (s0) # stop timer 3
-	
-	LA s0, TMR2
-	SW zero, (s0) # clear timer value
-
-	LA s0, PR3
-	LI t0, 0x2710 # Period register of 10,000 base 10
+	# TMR1 register contains 16-bit current value of Timer 1
+	LA s0, TMR1
+	MOVE t0, zero # clear timer value
 	SW t0, (s0)
+
+	# PR1 register contains 16-bit period match value, i.e. TMR1 value == PR1 value ==> interrupt
+	LA s0, PR1
+	LI t0, 0x004F # Affects how often interrupt is triggered: the smaller the number, the more often interrupt request occurs
+#	LI t0, 0xFFFF # match at 65,535
+	SW t0, (s0)
+
+	# T1CON - Control Register for Timer 1
+	# Bit 1 - TCS Timer Clock Source, 0 = internal peripheral clk (PBCLK)
+	# Bits 5:4 - TCKPS Timer Clock Prescale Select bits, 11 = /256, 10 = /64, 01 = /8, 00 = /1
+	# Bit 11 - TWIP Asynchronous Timer Write in Progress bit, 1 = Asynchronous write to TMR1 register in progress, 0 = write to TMR1 register complete
+	# Bit 15 - ON Timer On bit, 1 = timer enabled, 0 = disabled
 	
-	# turn on and set pbclk / 64, 16 bit timer mode, use pbclk
-	LA s0, T3CON
-	LI t0, 0x8050
+	LA s0, T1CON 
+	LI t0, 0x8020 # PBCLK / 64, Timer 1 on
 	SW t0, (s0)
 
 	# Set priority
-	LA s0, IPC3			# Interrupt priority register for Timer 3
+	LA s0, IPC1 # Interrupt priority register for Timer 1
+	# IPC1 T1IP <4:2> for Timer 1
 	LW t0, (s0)
-	ORI t0, t0, 6 << 2	# priority of 6
+	ORI t0, t0, 6 << 2 # priority 6
 	SW t0, (s0)
 
-	# pop register
+	# Pop registers
 	LW s0, 0(sp)
-	ADDI sp, sp, 4
-
+	LW ra, 4(sp)
+	ADDI sp, sp, 8
+	
 	JR ra
 
-.END setupTimer3
+.END setupTimer1
 
-.ENT enableTimer3Int
-enableTimer3Int:
+.ENT enableTimer1Int
+enableTimer1Int:
 
-	ADDI sp, sp, -4
+	# Preserve registers - push to stack
+	ADDI sp, sp, -8
+	SW ra, 4(sp)
 	SW s0, 0(sp)
 	
-	LA s0, IEC0
-	
+	LA s0, IEC0 # Interrupt enable control register - our mask register
 	LW t0, (s0)
-	ORI t0, t0, 1 << 12 # mas 1 to enable, 12 is T3IE position
+	ORI t0, t0, 1 << 4 # Set corresponding mask bit to 1 to enable, 4 is T1IE (Timer 1 Interrupt Enable) position
 	SW t0, (s0)
 
+	# Pop registers
 	LW s0, 0(sp)
-	ADDI sp, sp, 4
-
-.END enableTimer3Int
-
-.ENT disableTimer3Int
-disableTimer3Int:
+	LW ra, 4(sp)
+	ADDI sp, sp, 8
 	
-	ADDI sp, sp, -4
+	JR ra
+	
+.END enableTimer1Int
+
+.ENT disableTimer1Int
+disableTimer1Int:
+
+	# Preserve registers - push to stack
+	ADDI sp, sp, -8
+	SW ra, 4(sp)
 	SW s0, 0(sp)
 	
-	LA s0, IEC0CLR		# clear bit disable Timer 2 interrupt
-	LI t1, 1 << 12
-	SW t1, (s0)
+	LA s0, IEC0CLR # Used to clear bit to disable Timer 1 interrupt
+	LI t1, 1
+	SLL t1, t1, 4
+	SW t1, (s0) 
 
+	# Pop registers
 	LW s0, 0(sp)
-	ADDI sp, sp, 4
-
+	LW ra, 4(sp)
+	ADDI sp, sp, 8
+	
 	JR ra
+	
+.END disableTimer1Int
 
-.END disableTimer3Int
+.SECTION .vector_4, code
+	J Timer1IntHandler
+.TEXT
+
+.ENT Timer1IntHandler
+Timer1IntHandler:
+
+	# We want our handlers to be as short as possible. We do want them
+	# to execute in as few clock cycles as possible. We generally do
+	# not want to call procedures from within these handlers.
+
+	# Coprocessor 0 is necessary to communciate status and control between
+	# software and CPU. Will uyse Coprocessor 0 registers in the handler.
+	DI	# Disable system wide interrupts
+
+	# Register preservation courtesy of section 8 interrupts ref manual p. 21, 22
+	RDPGPR sp, sp
+	MFC0 k0, $13	# Cause register
+	MFC0 k1, $14	# EPC
+	SRL k0, k0, 0xA
+	ADDIU sp, sp, -76
+	SW k1, 0(sp)
+	MFC0 k1, $12	# Status register
+	SW k1, 4(sp)
+	INS k1, k0, 10, 6
+	INS k1, zero, 1, 4
+	MTC0 k1, $12	# Status register
+	SW s8, 8(sp)
+	SW a0, 12(sp)
+	SW a1, 16(sp)
+	SW a2, 20(sp)
+	SW a3, 24(sp)
+	SW v0, 28(sp)
+	SW v1, 32(sp)
+	SW t0, 36(sp)
+	SW t1, 40(sp)
+	SW t2, 44(sp)
+	SW t3, 48(sp)
+	SW t4, 52(sp)
+	SW t5, 56(sp)
+	SW t6, 60(sp)
+	SW t7, 64(sp)
+	SW t8, 68(sp)
+	SW t9, 72(sp)
+	ADDU s8, sp, zero
+
+	# Clear Timer 1 Interrupt status flag
+	LA t0, IFS0CLR
+	LW t1, (t0)
+	ORI t1, t1, 1 << 4 # Timer 1 bit position
+	SW t1, (t0)
+
+	# Write to all on-board LEDs to show interrupt handled;
+	# Toggle LEDs everytime this handler is executed;
+	# Excellent visual to determine frequency of generated signal
+	LA t0, LATBINV
+	LI t1, 0x3C00
+	SW t1, (t0)
+	
+	# Pulse motor - 50% duty cycle
+	# EN - JH-08, RD00
+	#LA t0, LATDINV
+	#LI t1, 1
+	#SW t1, (t0)
+    LA t0, LATGINV
+    LI t1, 0x80
+    SW t1, (t0)
+    # second motor
+    #LA t0, LATDINV
+    #LI t1, 1 << 5
+    #SW t1, (t0)
+	
+	# Sound RE08 - what freqency of sound is produced? Using Digilent PmodAMP1...
+    #LA t0, LATEINV
+    #LI t1, 1 << 8
+    #SW t1, (t0)
+
+	ADDU sp, s8, zero
+	LW t9, 72(sp)
+	LW t8, 68(sp)
+	LW t7, 64(sp)
+	LW t6, 60(sp)
+	LW t5, 56(sp)
+	LW t4, 52(sp)
+	LW t3, 48(sp)
+	LW t2, 44(sp)
+	LW t1, 40(sp)
+	LW t0, 36(sp)
+	LW v1, 32(sp)
+	LW v0, 28(sp)
+	LW a3, 24(sp)
+	LW a2, 20(sp)
+	LW a1, 16(sp)
+	LW a0, 12(sp)
+	LW s8, 8(sp)
+
+	LW k0, 0(sp)
+	MTC0 k0, $14	# EPC register
+	LW k0, 4(sp)
+	MTC0 k0, $12	# Status register
+
+	EI	# Enable system wide interrupts
+
+	ERET # PC = EPC
+
+.END Timer1IntHandler
 
 .ENT setupTimer2
 setupTimer2:
@@ -761,11 +766,15 @@ setupTimer2:
 
 	# timer max value = 65,535
 	LA s0, PR2
-	LI t0, 0x2710 # PRx 10,000
+	LI t0, 0x4F
 	SW t0, (s0)
 
+	# T2CON Bit 1 Timer clock source: 0=internal (PBCLK)
+	# 5:4 Timer clock prescale select bits,11=/256,10=/64,01=/8,00=/1
+	# 11 Asynchronous Timer Write in Progress bit, 0=TMR1, 1=?
+	# 15 Timer on bit, 1=enabled, 0=disabled
 	LA s0, T2CON
-	LI t0, 0x8050	# PBCLK /16, TMR2 on
+	LI t0, 0x8020	# PBCLK /64, TMR2 on
 	SW t0, (s0)
 
 	# Set priority
@@ -781,6 +790,7 @@ setupTimer2:
 	JR ra
 
 .END setupTimer2
+
 
 .ENT enableTimer2Int
 enableTimer2Int:
@@ -808,7 +818,8 @@ disableTimer2Int:
 	SW s0, 0(sp)
 
 	LA s0, IEC0CLR		# clear bit disable Timer 2 interrupt
-	LI t1, 1 << 8
+	LI t1, 1
+	SLL t1, t1, 8
 	SW t1, (s0)
 
 	LW s0, 0(sp)
@@ -817,3 +828,102 @@ disableTimer2Int:
 	JR ra
 
 .END disableTimer2Int
+stopMotor
+
+.SECTION .vector_8, code
+	J Timer2IntHandler
+.TEXT
+
+.ENT Timer2IntHandler
+Timer2IntHandler:
+
+	DI	# Disable system wide interrupts
+
+	RDPGPR sp, sp
+	MFC0 k0, $13	# Cause register
+	MFC0 k1, $14	# EPC
+	SRL k0, k0, 0xA
+	ADDIU sp, sp, -76
+	SW k1, 0(sp)
+	MFC0 k1, $12	# Status register
+	SW k1, 4(sp)
+	INS k1, k0, 10, 6
+	INS k1, zero, 1, 4
+	MTC0 k1, $12	# Status register
+	SW s8, 8(sp)
+	SW a0, 12(sp)
+	SW a1, 16(sp)
+	SW a2, 20(sp)
+	SW a3, 24(sp)
+	SW v0, 28(sp)
+	SW v1, 32(sp)
+	SW t0, 36(sp)
+	SW t1, 40(sp)
+	SW t2, 44(sp)
+	SW t3, 48(sp)
+	SW t4, 52(sp)
+	SW t5, 56(sp)
+	SW t6, 60(sp)
+	SW t7, 64(sp)
+	SW t8, 68(sp)
+	SW t9, 72(sp)
+	ADDU s8, sp, zero
+
+	# Clear Timer 2 Interrupt status flag
+	LA t0, IFS0CLR
+	LW t1, (t0)
+	ORI t1, t1, 1 << 8 # Timer 2 bit position
+	SW t1, (t0)
+
+	# Write to all on-board LEDs to show interrupt handled;
+	# Toggle LEDs everytime this handler is executed;
+	# Excellent visual to determine frequency of generated signal
+	LA t0, LATBINV
+	LI t1, 0x3C00
+	SW t1, (t0)
+	
+	# Pulse motor - 50% duty cycle
+	# EN - JH-08, RD00
+	#LA t0, LATDINV
+	#LI t1, 1
+	#SW t1, (t0)
+    
+	#LA t0, LATGINV
+    #LI t1, 0x80
+    #SW t1, (t0)
+    # second motor
+    LA t0, LATDINV
+    LI t1, 1 << 5
+    SW t1, (t0)
+	
+
+	ADDU sp, s8, zero
+	LW t9, 72(sp)
+	LW t8, 68(sp)
+	LW t7, 64(sp)
+	LW t6, 60(sp)
+	LW t5, 56(sp)
+	LW t4, 52(sp)
+	LW t3, 48(sp)
+	LW t2, 44(sp)
+	LW t1, 40(sp)
+	LW t0, 36(sp)
+	LW v1, 32(sp)
+	LW v0, 28(sp)
+	LW a3, 24(sp)
+	LW a2, 20(sp)
+	LW a1, 16(sp)
+	LW a0, 12(sp)
+	LW s8, 8(sp)
+
+	LW k0, 0(sp)
+	MTC0 k0, $14	# EPC register
+	LW k0, 4(sp)
+	MTC0 k0, $12	# Status register
+
+	EI	# Enable system wide interrupts
+
+	ERET # PC = EPC go back to normal 
+	
+
+.END Timer2IntHandler
