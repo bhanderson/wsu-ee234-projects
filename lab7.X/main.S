@@ -21,8 +21,8 @@ program: .word 0x1011, 0x1211, 0x2110, 0x3106, 0x4190, 0x3007, 0x4910, 0x4201, 0
 main:
 	DI						# Disable system wide interrupts
 
-	JAL disableTimer1Int	# Disable Timer 1 interrupt;
-	JAL disableTimer2Int
+	JAL disableTimer2Int	# Disable Timer 1 interrupt;
+	JAL disableTimer3Int
 	JAL port_setup
     LA a1, program			# Load the program instructions into program memory
     LI s1, 0
@@ -83,7 +83,6 @@ rm_search_program:
 		ADDI a2, t0, 0	# store t0 to a0(operand register) to preserve
 		JR ra				# jump back to what called search
 .END rm_search_program
-
 
 .ENT rm_data
 rm_data:
@@ -305,7 +304,7 @@ rm_control_advanced:
 .ENT port_setup
 port_setup:
 	# Set these to pins to outputs
-	# First Motor H-bridge: DIR - RG09; EN RG09
+	# First Motor H-bridge: DIR - RG09; EN RG08
 	LI t0, 1 << 9
 	SW t0, TRISGCLR
 	LI t0, 1 << 8
@@ -349,46 +348,43 @@ setupMultiVectoredMode:
 
 .END setupMultiVectoredMode
 
-.ENT setupTimer1
-setupTimer1:
+.ENT setupOutputCompare1Module
+setupOutputCompare1Module:
 
 	# Preserve registers - push to stack
 	ADDI sp, sp, -8
 	SW ra, 4(sp)
 	SW s0, 0(sp)
+
+	# Ensure OC1 is off while setting up module 1
+	LA s0, OC1CON # Output compare 1 control register
+	MOVE t0, zero
+	SW t0, (s0)
 	
-	# T1CON - Control Register for Timer 1
-	# Bit 15 - ON Timer On bit, 1 = timer enabled, 0 = disabled
-	LA s0, T1CON 
-	LI t0, 0x0 # stop Timer 1
+	# Initialize the OC1R register before the output compare module, this register determins duty cycle
+	LA s0, OC1R
+	LI t0, 0x0 # Shoot for 0% duty cycle, PR2 - 10,000
+	SW t0, (s0)
+	# The OC1RS secondary output compare register will contain the actual duty cycle
+	LA s0, OC1RS
+	LI t0, 0x0 # Shoot for 0% duty cycle
 	SW t0, (s0)
 
-	# TMR1 register contains 16-bit current value of Timer 1
-	LA s0, TMR1
-	MOVE t0, zero # clear timer value
+	# Now configure the compare module using OC1CON
+	# Bits 2:0 - 110 = PWM mode on OC1, 011 = compare event toggles OC1 pin
+	# Bit 3 - 1 = Timer 3 clk src, 0 = Timer 2 clk src
+	# Bit 5 - 1 = 32-bit comparisons, 0 = 16-bit comparisons
+	# Bit 15 - 1 = enable output compare, 0 = disabled, not drawing current
+	LA s0, OC1CON
+	MOVE t0, zero
+	ORI t0, t0, 6 # PWM mode
+	ORI t0, t0, 1 << 15 # Enable output compare module
 	SW t0, (s0)
-
-	# PR1 register contains 16-bit period match value, i.e. TMR1 value == PR1 value ==> interrupt
-	LA s0, PR1
-	LI t0, 0x004F # Affects how often interrupt is triggered: the smaller the number, the more often interrupt request occurs
-#	LI t0, 0xFFFF # match at 65,535
-	SW t0, (s0)
-
-	# T1CON - Control Register for Timer 1
-	# Bit 1 - TCS Timer Clock Source, 0 = internal peripheral clk (PBCLK)
-	# Bits 5:4 - TCKPS Timer Clock Prescale Select bits, 11 = /256, 10 = /64, 01 = /8, 00 = /1
-	# Bit 11 - TWIP Asynchronous Timer Write in Progress bit, 1 = Asynchronous write to TMR1 register in progress, 0 = write to TMR1 register complete
-	# Bit 15 - ON Timer On bit, 1 = timer enabled, 0 = disabled
 	
-	LA s0, T1CON 
-	LI t0, 0x8020 # PBCLK / 64, Timer 1 on
-	SW t0, (s0)
-
-	# Set priority
-	LA s0, IPC1 # Interrupt priority register for Timer 1
-	# IPC1 T1IP <4:2> for Timer 1
-	LW t0, (s0)
-	ORI t0, t0, 6 << 2 # priority 6
+	# Set priority of compare match interrupt IPC1<20:18>
+	LA s0, IPC1SET
+	LI t0, 6 # priority 6
+	SLL t0, t0, 18
 	SW t0, (s0)
 
 	# Pop registers
@@ -397,12 +393,12 @@ setupTimer1:
 	ADDI sp, sp, 8
 	
 	JR ra
+	
+.END setupOutputCompare1Module
 
-.END setupTimer1
-
-.ENT enableTimer1Int
-enableTimer1Int:
-
+.ENT enableOutputCompare1Int
+enableOutputCompare1Int:
+	
 	# Preserve registers - push to stack
 	ADDI sp, sp, -8
 	SW ra, 4(sp)
@@ -410,7 +406,7 @@ enableTimer1Int:
 	
 	LA s0, IEC0 # Interrupt enable control register - our mask register
 	LW t0, (s0)
-	ORI t0, t0, 1 << 4 # Set corresponding mask bit to 1 to enable, 4 is T1IE (Timer 1 Interrupt Enable) position
+	ORI t0, t0, 1 << 6 # Set corresponding mask bit to 1 to enable, 6 is Output Compare Interrupt Enable 1 (OCIE1)
 	SW t0, (s0)
 
 	# Pop registers
@@ -420,36 +416,16 @@ enableTimer1Int:
 	
 	JR ra
 	
-.END enableTimer1Int
 
-.ENT disableTimer1Int
-disableTimer1Int:
+.END enableOutputCompare1Int
 
-	# Preserve registers - push to stack
-	ADDI sp, sp, -8
-	SW ra, 4(sp)
-	SW s0, 0(sp)
-	
-	LA s0, IEC0CLR # Used to clear bit to disable Timer 1 interrupt
-	LI t1, 1
-	SLL t1, t1, 4
-	SW t1, (s0) 
 
-	# Pop registers
-	LW s0, 0(sp)
-	LW ra, 4(sp)
-	ADDI sp, sp, 8
-	
-	JR ra
-	
-.END disableTimer1Int
-
-.SECTION .vector_4, code
-	J Timer1IntHandler
+.SECTION .vector_6, code
+	J OutputCompare1IntHandler
 .TEXT
 
-.ENT Timer1IntHandler
-Timer1IntHandler:
+.ENT OutputCompare1IntHandler
+OutputCompare1IntHandler:
 
 	# We want our handlers to be as short as possible. We do want them
 	# to execute in as few clock cycles as possible. We generally do
@@ -490,36 +466,18 @@ Timer1IntHandler:
 	SW t9, 72(sp)
 	ADDU s8, sp, zero
 
-	# Clear Timer 1 Interrupt status flag
+	# Clear Output Compare 1 Interrupt status flag
 	LA t0, IFS0CLR
 	LW t1, (t0)
-	ORI t1, t1, 1 << 4 # Timer 1 bit position
+	ORI t1, t1, 1 << 6 
 	SW t1, (t0)
 
-	# Write to all on-board LEDs to show interrupt handled;
-	# Toggle LEDs everytime this handler is executed;
-	# Excellent visual to determine frequency of generated signal
-	LA t0, LATBINV
-	LI t1, 0x3C00
+	# Can set new duty cycle in this handler
+	# Use OC1RS, the secondary compare register
+	
+	LA t0, LATGINV
+	LI t1, 3
 	SW t1, (t0)
-	
-	# Pulse motor - 50% duty cycle
-	# EN - JH-08, RD00
-	#LA t0, LATDINV
-	#LI t1, 1
-	#SW t1, (t0)
-    LA t0, LATGINV
-    LI t1, 0x80
-    SW t1, (t0)
-    # second motor
-    #LA t0, LATDINV
-    #LI t1, 1 << 5
-    #SW t1, (t0)
-	
-	# Sound RE08 - what freqency of sound is produced? Using Digilent PmodAMP1...
-#	LA t0, LATEINV
-#	LI t1, 1 << 8
-#	SW t1, (t0)
 
 	ADDU sp, s8, zero
 	LW t9, 72(sp)
@@ -549,96 +507,97 @@ Timer1IntHandler:
 
 	ERET # PC = EPC
 
-.END Timer1IntHandler
+.END OutputCompare1IntHandler
 
-.ENT setupTimer2
-setupTimer2:
+.ENT setupOutputCompare2Module
+setupOutputCompare2Module:
 
-	ADDI sp, sp, -4
+	# Preserve registers - push to stack
+	ADDI sp, sp, -8
+	SW ra, 4(sp)
 	SW s0, 0(sp)
 
-	# stop timer 2
-	LA s0, T2CON
-	SW zero, (s0)
-
-	# clear timer value
-	LA s0, TMR2
-	SW zero, (s0)
-
-	# timer max value = 65,535
-	LA s0, PR2
-	LI t0, 0x4F
+	# Ensure OC1 is off while setting up module 1
+	LA s0, OC2CON # Output compare 1 control register
+	MOVE t0, zero
+	SW t0, (s0)
+	
+	# Initialize the OC1R register before the output compare module, this register determins duty cycle
+	LA s0, OC2R
+	LI t0, 0x0 # Shoot for 0% duty cycle, PR2 - 10,000
+	SW t0, (s0)
+	# The OC1RS secondary output compare register will contain the actual duty cycle
+	LA s0, OC2RS
+	LI t0, 0x0 # Shoot for 0% duty cycle
 	SW t0, (s0)
 
-	# T2CON Bit 1 Timer clock source: 0=internal (PBCLK)
-	# 5:4 Timer clock prescale select bits,11=/256,10=/64,01=/8,00=/1
-	# 11 Asynchronous Timer Write in Progress bit, 0=TMR1, 1=?
-	# 15 Timer on bit, 1=enabled, 0=disabled
-	LA s0, T2CON
-	LI t0, 0x8020	# PBCLK /64, TMR2 on
+	# Now configure the compare module using OC1CON
+	# Bits 2:0 - 110 = PWM mode on OC1, 011 = compare event toggles OC1 pin
+	# Bit 3 - 1 = Timer 3 clk src, 0 = Timer 2 clk src
+	# Bit 5 - 1 = 32-bit comparisons, 0 = 16-bit comparisons
+	# Bit 15 - 1 = enable output compare, 0 = disabled, not drawing current
+	LA s0, OC2CON
+	MOVE t0, zero
+	ORI t0, t0, 6 # PWM mode
+	ORI t0, t0, 1 << 15 # Enable output compare module
+	ORI t0, t0, 1 << 3  # Timer 3 clk src
 	SW t0, (s0)
-
-	# Set priority
-	LA s0, IPC2			# Interrupt priority register for Timer 2
-	LW t0, (s0)			# IPC2 T2IP <4:2> for Timer 2
-	ORI t0, t0, 6 << 2	# priority 6
+	
+	# Set priority of compare match interrupt IPC1<20:18>
+	LA s0, IPC2SET
+	LI t0, 6 # priority 6
+	SLL t0, t0, 18
 	SW t0, (s0)
 
 	# Pop registers
 	LW s0, 0(sp)
-	ADDI sp, sp, 4
-
+	LW ra, 4(sp)
+	ADDI sp, sp, 8
+	
 	JR ra
+	
+.END setupOutputCompare2Module
 
-.END setupTimer2
+.ENT enableOutputCompare2Int
+enableOutputCompare2Int:
+	
 
-
-.ENT enableTimer2Int
-enableTimer2Int:
-
-	ADDI sp, sp, -4
+	# Preserve registers - push to stack
+	ADDI sp, sp, -8
+	SW ra, 4(sp)
 	SW s0, 0(sp)
-
-	LA s0, IEC0
-
+	
+	LA s0, IEC0 # Interrupt enable control register - our mask register
 	LW t0, (s0)
-	ORI t0, t0, 1 << 8	# mask 1 to enable, 8 is T2IE positioni
+	ORI t0, t0, 1 << 10 # Set corresponding mask bit to 1 to enable, 6 is Output Compare Interrupt Enable 1 (OCIE1)
 	SW t0, (s0)
 
+	# Pop registers
 	LW s0, 0(sp)
-	ADDI sp, sp, 4
-
-	JR ra
-.END enableTimer2Int
-
-
-.ENT disableTimer2Int
-disableTimer2Int:
+	LW ra, 4(sp)
+	ADDI sp, sp, 8
 	
-	ADDI sp, sp, -4
-	SW s0, 0(sp)
-
-	LA s0, IEC0CLR		# clear bit disable Timer 2 interrupt
-	LI t1, 1
-	SLL t1, t1, 8
-	SW t1, (s0)
-
-	LW s0, 0(sp)
-	ADDI sp, sp, 4
-
 	JR ra
+	
+.END enableOutputCompare2Int
 
-.END disableTimer2Int
-
-.SECTION .vector_8, code
-	J Timer2IntHandler
+.SECTION .vector_10, code
+	J OutputCompare2IntHandler
 .TEXT
 
-.ENT Timer2IntHandler
-Timer2IntHandler:
 
+.ENT OutputCompare2IntHandler
+OutputCompare2IntHandler:
+
+	# We want our handlers to be as short as possible. We do want them
+	# to execute in as few clock cycles as possible. We generally do
+	# not want to call procedures from within these handlers.
+
+	# Coprocessor 0 is necessary to communciate status and control between
+	# software and CPU. Will uyse Coprocessor 0 registers in the handler.
 	DI	# Disable system wide interrupts
 
+	# Register preservation courtesy of section 8 interrupts ref manual p. 21, 22
 	RDPGPR sp, sp
 	MFC0 k0, $13	# Cause register
 	MFC0 k1, $14	# EPC
@@ -669,33 +628,18 @@ Timer2IntHandler:
 	SW t9, 72(sp)
 	ADDU s8, sp, zero
 
-	# Clear Timer 2 Interrupt status flag
+	# Clear Output Compare 1 Interrupt status flag
 	LA t0, IFS0CLR
 	LW t1, (t0)
-	ORI t1, t1, 1 << 8 # Timer 2 bit position
+	ORI t1, t1, 1 << 10 
 	SW t1, (t0)
 
-	# Write to all on-board LEDs to show interrupt handled;
-	# Toggle LEDs everytime this handler is executed;
-	# Excellent visual to determine frequency of generated signal
-	LA t0, LATBINV
-	LI t1, 0x3C00
+	# Can set new duty cycle in this handler
+	# Use OC1RS, the secondary compare register
+	
+	LA t0, LATGINV
+	LI t1, 1 << 13
 	SW t1, (t0)
-	
-	# Pulse motor - 50% duty cycle
-	# EN - JH-08, RD00
-	#LA t0, LATDINV
-	#LI t1, 1
-	#SW t1, (t0)
-    
-	#LA t0, LATGINV
-    #LI t1, 0x80
-    #SW t1, (t0)
-    # second motor
-    LA t0, LATDINV
-    LI t1, 1 << 5
-    SW t1, (t0)
-	
 
 	ADDU sp, s8, zero
 	LW t9, 72(sp)
@@ -723,7 +667,153 @@ Timer2IntHandler:
 
 	EI	# Enable system wide interrupts
 
-	ERET # PC = EPC go back to normal 
-	
+	ERET # PC = EPC
 
-.END Timer2IntHandler
+.END OutputCompare2IntHandler
+
+
+
+
+.ENT setupTimer3
+setupTimer3:
+
+	ADDI sp, sp, -4
+	SW s0, 0(sp)
+
+	# T3CON - Control Register for Timer 3
+	# Bit 15 - ON Timer On bit, 1 = timer enable, 0 disabled
+	LA s0, T3CON
+	SW zero, (s0) # stop timer 3
+	
+	LA s0, TMR2
+	SW zero, (s0) # clear timer value
+
+	LA s0, PR3
+	LI t0, 0x2710 # Period register of 10,000 base 10
+	SW t0, (s0)
+	
+	# turn on and set pbclk / 64, 16 bit timer mode, use pbclk
+	LA s0, T3CON
+	LI t0, 0x8050
+	SW t0, (s0)
+
+	# Set priority
+	LA s0, IPC3			# Interrupt priority register for Timer 3
+	LW t0, (s0)
+	ORI t0, t0, 6 << 2	# priority of 6
+	SW t0, (s0)
+
+	# pop register
+	LW s0, 0(sp)
+	ADDI sp, sp, 4
+
+	JR ra
+
+.END setupTimer3
+
+.ENT enableTimer3Int
+enableTimer3Int:
+
+	ADDI sp, sp, -4
+	SW s0, 0(sp)
+	
+	LA s0, IEC0
+	
+	LW t0, (s0)
+	ORI t0, t0, 1 << 12 # mas 1 to enable, 12 is T3IE position
+	SW t0, (s0)
+
+	LW s0, 0(sp)
+	ADDI sp, sp, 4
+
+.END enableTimer3Int
+
+.ENT disableTimer3Int
+disableTimer3Int:
+	
+	ADDI sp, sp, -4
+	SW s0, 0(sp)
+	
+	LA s0, IEC0CLR		# clear bit disable Timer 2 interrupt
+	LI t1, 1 << 12
+	SW t1, (s0)
+
+	LW s0, 0(sp)
+	ADDI sp, sp, 4
+
+	JR ra
+
+.END disableTimer3Int
+
+.ENT setupTimer2
+setupTimer2:
+
+	ADDI sp, sp, -4
+	SW s0, 0(sp)
+
+	# stop timer 2
+	LA s0, T2CON
+	SW zero, (s0)
+
+	# clear timer value
+	LA s0, TMR2
+	SW zero, (s0)
+
+	# timer max value = 65,535
+	LA s0, PR2
+	LI t0, 0x2710 # PRx 10,000
+	SW t0, (s0)
+
+	LA s0, T2CON
+	LI t0, 0x8050	# PBCLK /16, TMR2 on
+	SW t0, (s0)
+
+	# Set priority
+	LA s0, IPC2			# Interrupt priority register for Timer 2
+	LW t0, (s0)			# IPC2 T2IP <4:2> for Timer 2
+	ORI t0, t0, 6 << 2	# priority 6
+	SW t0, (s0)
+
+	# Pop registers
+	LW s0, 0(sp)
+	ADDI sp, sp, 4
+
+	JR ra
+
+.END setupTimer2
+
+.ENT enableTimer2Int
+enableTimer2Int:
+
+	ADDI sp, sp, -4
+	SW s0, 0(sp)
+
+	LA s0, IEC0
+
+	LW t0, (s0)
+	ORI t0, t0, 1 << 8	# mask 1 to enable, 8 is T2IE positioni
+	SW t0, (s0)
+
+	LW s0, 0(sp)
+	ADDI sp, sp, 4
+
+	JR ra
+.END enableTimer2Int
+
+
+.ENT disableTimer2Int
+disableTimer2Int:
+	
+	ADDI sp, sp, -4
+	SW s0, 0(sp)
+
+	LA s0, IEC0CLR		# clear bit disable Timer 2 interrupt
+	LI t1, 1 << 8
+	SW t1, (s0)
+
+	LW s0, 0(sp)
+	ADDI sp, sp, 4
+
+	JR ra
+
+.END disableTimer2Int
