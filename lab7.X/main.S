@@ -15,7 +15,7 @@
 
 #program: .word 0x1011, 0x1211, 0x2110, 0x3106, 0x4190, 0x3007, 0x4090, 0x4201, 0x4403, 0x3300, 0x80, 0x00
 #program: .word 0x4210, 0x4190, 0x4090, 0x4210, 0x4190, 0x4090, 0x4210, 0x4190, 0x4090, 0x0040, 0x0030
-program: .word 0x4090, 0x4210, 0x4190, 0x4210, 0x4090, 0x4210, 0x4190, 0x4210, 0x4090, 0x4210, 0x4190, 0x4210, 0x4090, 0x4210, 0x4190, 0x4210, 0x80, 0x00
+program: .word 0x4090, 0x4210, 0x4190, 0x4210, 0x4090, 0x4210, 0x4190, 0x4210, 0x4090, 0x4210, 0x4190, 0x4210, 0x4090, 0x4210, 0x4190, 0x4210,0x3300, 0x80, 0x00
 
 .TEXT                       # The start of the code segment
 
@@ -70,10 +70,10 @@ main:
 
 
 	error:					# this lable starts the error sequence flashing the led pmods very quickly
-		LI t0, 0xF
-		SW t0, (LATB)
-		LI t0, 0
-		SW t0, (LATB)
+		##LI t0, 0xF
+		##SW t0, (LATB)
+		##LI t0, 0
+		##SW t0, (LATB)
 		J error
 	stop:					# here to end the program
         LI v0, 10
@@ -295,7 +295,10 @@ rm_control:
     BEQ t0, t1, rm_control_backward
 	ADDI t1, t1, 1	#t1 = 4
 	BEQ t0, t1, rm_control_brake
-
+    ADDI t1, t1, 1	#t1 = 5
+	BEQ t0, t1, rm_control_advanced_left
+    ADDI t1, t1, 1	#t1 = 6
+	BEQ t0, t1, rm_control_advanced_right
 	rm_control_left:
         # Preserve registers - push to stack
         ADDI sp, sp, -8
@@ -353,6 +356,27 @@ rm_control:
 		J iterate
 
 	rm_control_foreward:
+        ADDI sp, sp, -8
+        SW ra, 4(sp)
+        SW a0, 0(sp)
+
+        LI a0,3
+        JAL stop_motor
+
+        # Pop registers
+        LW a0, 0(sp)
+        LW ra, 4(sp)
+        ADDI sp, sp, 8
+
+        LW t0,PORTB
+        ORI t0,t0,0x8000
+        SW t0,LATB
+
+        LW t0,PORTG
+        ORI t0,t0,0x0200
+        SW t0,LATG
+
+
 		# Preserve registers - push to stack
         ADDI sp, sp, -8
         SW ra, 4(sp)
@@ -367,7 +391,41 @@ rm_control:
         ADDI sp, sp, 8
         J iterate
 	rm_control_backward:
+        ADDI sp, sp, -8
+        SW ra, 4(sp)
+        SW a0, 0(sp)
+
+        LI a0,3
+        JAL stop_motor
+
+        # Pop registers
+        LW a0, 0(sp)
+        LW ra, 4(sp)
+        ADDI sp, sp, 8
+
+        LW t0,PORTB
+        ANDI t0,t0,0x7FFF
+        SW t0,LATB
+        
+        LW t0,PORTG
+        ANDI t0,t0,0xFDFF
+        SW t0,LATG
+
+        # Preserve registers - push to stack
+        ADDI sp, sp, -8
+        SW ra, 4(sp)
+        SW a0, 0(sp)
+
+        LI a0,0b111100011
+        JAL start_motor
+
+        # Pop registers
+        LW a0, 0(sp)
+        LW ra, 4(sp)
+        ADDI sp, sp, 8
+        
         J iterate
+
 	rm_control_brake:
 		# Preserve registers - push to stack
         ADDI sp, sp, -8
@@ -419,6 +477,7 @@ rm_control_advanced:
         LW a0, 0(sp)
         LW ra, 4(sp)
         ADDI sp, sp, 8
+        J iterate
 	rm_control_advanced_right:
         #first we start one motor at 100%
         # Preserve registers - push to stack
@@ -451,6 +510,7 @@ rm_control_advanced:
         LW a0, 0(sp)
         LW ra, 4(sp)
         ADDI sp, sp, 8
+        J iterate
 	rm_control_advanced_foreward:
 	rm_control_advanced_brake:
 
