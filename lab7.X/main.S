@@ -15,14 +15,13 @@
 
 #program: .word 0x1011, 0x1211, 0x2110, 0x3106, 0x4190, 0x3007, 0x4090, 0x4201, 0x4403, 0x3300, 0x80, 0x00
 #program: .word 0x4210, 0x4190, 0x4090, 0x4210, 0x4190, 0x4090, 0x4210, 0x4190, 0x4090, 0x0040, 0x0030
-program: .word 0x4090, 0x4210, 0x4190, 0x4210, 0x4090, 0x4210, 0x4190, 0x4210, 0x4090, 0x4210, 0x4190, 0x4210, 0x4090, 0x4210, 0x4190, 0x4210,0x3300, 0x80, 0x00
+program: .word 0x4090, 0x4210, 0x4190, 0x4210, 0x4090, 0x4210, 0x4190, 0x4210, 0x4090, 0x4210, 0x4190, 0x4210, 0x4090, 0x4210, 0x4190, 0x4210, 0x4090, 0x3300, 0x80, 0x00
 
 .TEXT                       # The start of the code segment
 
 .ENT main					# Setup a main entry point
 main:
 	DI						# Disable system wide interrupts
-
     JAL port_setup
     JAL setupMultiVectoredMode
     JAL setupOutputCompare1Module
@@ -76,6 +75,9 @@ main:
 		##SW t0, (LATB)
 		J error
 	stop:					# here to end the program
+     #   SW zero, LATB
+     #   SW zero, LATG
+     #   SW zero, LATD
         LI v0, 10
         syscall
     J stop
@@ -86,7 +88,7 @@ main:
 rm_search_program:
 	LI t0, 0				# t0 is the counter
 	LI t1, 0x3300			# t1 is the checksum for end of program, (variables follow this instruction)
-	ADD t2, zero, a1     # t2 is the copy of a1 to protect it
+	ADD t2, zero, a1     # t2 is the copy of a1 fto protect it
 
 	rm_search_program_loop:
         LW t3, 0(t2)							# load the first instruction into t3 (might be able to combine this and next line)
@@ -572,8 +574,13 @@ start_motor:
         SW t0, TRISDCLR
         JR ra
 .END start_motor
+
 .ENT port_setup
 port_setup:
+
+    SW zero, LATG
+    SW zero, LATB
+    #SW zero, LATD
 	# Set these to pins to outputs
 	# First Motor H-bridge: DIR - RG09; EN RG09
 	LI t0, 1 << 9
@@ -586,6 +593,13 @@ port_setup:
 	LI t0, 1 << 5
 	SW t0, TRISDCLR
 
+    # set direction at setup
+    LW t0, PORTG
+    ORI t0, t0, 1 << 9
+    SW t0, LATG
+    LW t0, PORTB
+    ORI t0, t0, 1 << 15
+    SW t0, LATB
 	JR ra
 
 .END port_setup
@@ -642,7 +656,7 @@ setupOutputCompare1Module:
 	# Bit 15 - 1 = enable output compare, 0 = disabled, not drawing current
 	LA s0, OC1CON
 	MOVE t0, zero
-	ORI t0, t0, 6 # PWM mode
+	ORI t0, t0, 0 # PWM mode
 	ORI t0, t0, 1 << 15 # Enable output compare module
 	SW t0, (s0)
 
@@ -739,7 +753,7 @@ OutputCompare1IntHandler:
 
 	# Can set new duty cycle in this handler
 	# Use OC1RS, the secondary compare register
-
+    
 
 	LA t0, LATDINV
 	LI t1, 1 << 5
@@ -804,7 +818,7 @@ setupOutputCompare2Module:
 	# Bit 15 - 1 = enable output compare, 0 = disabled, not drawing current
 	LA s0, OC2CON
 	MOVE t0, zero
-	ORI t0, t0, 6 # PWM mode
+	ORI t0, t0, 0 # PWM mode
 	ORI t0, t0, 1 << 15 # Enable output compare module
 	ORI t0, t0, 1 << 3  # Timer 3 clk src
 	SW t0, (s0)
@@ -894,7 +908,7 @@ OutputCompare2IntHandler:
 	SW t9, 72(sp)
 	ADDU s8, sp, zero
 
-	# Clear Output Compare 1 Interrupt status flag
+	# Clear Output Compare 2 Interrupt status flag
 	LA t0, IFS0CLR
 	LW t1, (t0)
 	ORI t1, t1, 1 << 10
@@ -955,7 +969,7 @@ setupTimer3:
 	SW zero, (s0) # clear timer value
 
 	LA s0, PR3
-	LI t0, 0x2710 # Period register of 10,000 base 10
+	LI t0, 10000 # Period register of 10,000 base 10
 	SW t0, (s0)
 
 	# turn on and set pbclk / 64, 16 bit timer mode, use pbclk
