@@ -10,9 +10,12 @@
 .DATA
 
 # put program here
-program: .word 0x4190, 0x4090, 0x4190, 0x4090, 0x4190, 0x4090, 0x4190, 0x4090, 0x4190, 0x4090, 0x3300, 0x80, 0x00
+#program: .word 0x4190, 0x4090, 0x4190, 0x4090, 0x4190, 0x4090, 0x4190, 0x4090, 0x4190, 0x4090, 0x3300, 0x80, 0x00
 #program: .word 0x4090, 0x4210, 0x4190, 0x4210, 0x4090, 0x4210, 0x4190, 0x4210, 0x4090, 0x4210, 0x4190, 0x4210, 0x4090, 0x4210, 0x4190, 0x4210, 0x4090, 0x3300, 0x80, 0x00
-
+#program: .word 0x4090, 0x4090, 0x4090, 0x4090, 0x4090, 0x4090, 0x4090, 0x3300, 0x80, 0x00
+#program: .word 0x4190, 0x4190, 0x4190, 0x4190, 0x4190, 0x4190, 0x4190, 0x3300, 0x80, 0x00
+#program: .word 0x4200, 0x4200, 0x4201, 0x4201, 0x4210, 0x4210, 0x4200, 0x4200, 0x3000, 0x3300, 0x80, 0x00
+program: .word 0x4300, 0x4300, 0x4301, 0x4301, 0x4310, 0x4310, 0x4300, 0x4300, 0x3000, 0x3300, 0x80, 0x00
 .TEXT
 
 .ENT main
@@ -268,7 +271,7 @@ setupTimer2:
 
 	# timer max value = 65,535
 	LA s0, PR2
-	LI t0, 100 # PRx 10,000
+	LI t0, 99 # OCxR / PRx + 1 = duty cycle
 	SW t0, (s0)
 
 	LA s0, T2CON
@@ -299,7 +302,7 @@ setupTimer3:
 	SW zero, (s0) # clear timer value
 
 	LA s0, PR3
-	LI t0, 100 # Period register of 10,000 base 10
+	LI t0, 99 # OCxR / PRx +1 = Duty cycle
 	SW t0, (s0)
 
 	# turn on and set pbclk / 64, 16 bit timer mode, use pbclk
@@ -333,7 +336,6 @@ rm_search_program:
 		ADDI a2, t0, 0	# store t0 to a0(operand register) to preserve
 		JR ra				# jump back to what called search
 .END rm_search_program
-
 
 .ENT rm_data
 rm_data:
@@ -516,136 +518,127 @@ rm_branch:
 
 .ENT rm_control
 rm_control:
-    ANDI t0, s2, 0x0F00
-    SRL t0, 8
-    LI t1, 0
-    BEQ t0, t1, rm_control_left
-    ADDI t1, t1, 1    #t1 = 1
-    BEQ t0, t1, rm_control_right
-    ADDI t1, t1, 1    #t1 = 2
-    BEQ t0, t1, rm_control_foreward
-    ADDI t1, t1, 1    #t1 = 3
-    BEQ t0, t1, rm_control_backward
+	ANDI t0, s2, 0x0F00		# mask direction
+	SRL t0, 8
+	LI t1, 0
+	BEQ t0, t1, rm_control_left
+	ADDI t1, t1, 1    #t1 = 1
+	BEQ t0, t1, rm_control_right
+	ADDI t1, t1, 1    #t1 = 2
+	BEQ t0, t1, rm_control_forward
+	ADDI t1, t1, 1    #t1 = 3
+	BEQ t0, t1, rm_control_backward
 	ADDI t1, t1, 1	#t1 = 4
 	BEQ t0, t1, rm_control_brake
-    ADDI t1, t1, 1	#t1 = 5
+	ADDI t1, t1, 1	#t1 = 5
 	#BEQ t0, t1, rm_control_advanced_left
-    ADDI t1, t1, 1	#t1 = 6
+	ADDI t1, t1, 1	#t1 = 6
 	#BEQ t0, t1, rm_control_advanced_right
 
-    #arguments are stored in a0
-    # 6:0 = speed: (0-99)
-    # 8:7 = wheel: 3 = both, 2 = right, 1 = left
-    # 9 = direction: 1 = forward, 0 = reverse
+	rm_control_left:
+		# Preserve registers - push to stack
+		ADDI sp, sp, -8
+		SW ra, 4(sp)
+		SW a0, 0(sp)
 
-    rm_control_left:
-        # Preserve registers - push to stack
-        ADDI sp, sp, -8
-        SW ra, 4(sp)
-        SW a0, 0(sp)
+		LI a0, 0b1111100011 # forward right wheel speed=3
+		JAL start_motor
 
-        LI a0, 0b1100000011 # forward right wheel speed=3
-        JAL start_motor
-        #LI t0,0xffff
-		#MOVE t1,zero
-        #left_delay:
-        #    BEQ t0,t1,rm_control_left_delay
-        #    ADDI t1,t1,1
-        #    J left_delay
-        #rm_control_left_delay:
+		LI a0,1
+		JAL stop_motor
 
-        LI a0,1
-        JAL stop_motor
-
-        LW a0, 0(sp)
-        LW ra, 4(sp)
-        ADDI sp, sp, 8
-
-        J iterate
-    rm_control_right:
-        # 6:0 = speed: (0-99)
-        # 8:7 = wheel: 3 = both, 2 = right, 1 = left
-        # 9 = direction: 1 = forward, 0 = reverse
-        # Preserve registers - push to stack
-        ADDI sp, sp, -8
-        SW ra, 4(sp)
-        SW a0, 0(sp)
-
-        LI a0,0b1011100011
-        JAL start_motor
-        #LI t0,0x7fff
-		#MOVE t1,zero
-        #right_delay:
-        #BEQ t0,t1,rm_control_right_delay
-    	#ADDI t1,t1,1
-		#J right_delay
-        rm_control_right_delay:
-
-        LI a0,2
-        JAL stop_motor
-
-        # Pop registers
-        LW a0, 0(sp)
-        LW ra, 4(sp)
-        ADDI sp, sp, 8
+		# pop pushed registers
+		LW a0, 0(sp)
+		LW ra, 4(sp)
+		ADDI sp, sp, 8
 		J iterate
 
-	rm_control_foreward:
-        # 6:0 = speed: (0-99)
-        # 8:7 = wheel: 3 = both, 2 = right, 1 = left
-        # 9 = direction: 1 = forward, 0 = reverse
-        # Preserve registers - push to stack
-        ADDI sp, sp, -8
-        SW ra, 4(sp)
-        SW a0, 0(sp)
+	rm_control_right:
+		# 6:0 = speed: (0-99)
+		# 8:7 = wheel: 3 = both, 2 = right, 1 = left
+		# 9 = direction: 1 = forward, 0 = reverse
+		# Preserve registers - push to stack
+		ADDI sp, sp, -8
+		SW ra, 4(sp)
+		SW a0, 0(sp)
 
-        LI a0,0b1110000011
-        JAL start_motor
+		LI a0,0b1011100011	# forward wheel left speed 3
+		JAL start_motor
 
-        # Pop registers
-        LW a0, 0(sp)
-        LW ra, 4(sp)
-        ADDI sp, sp, 8
+		LI a0,2
+		JAL stop_motor
+
+		# Pop registers
+		LW a0, 0(sp)
+		LW ra, 4(sp)
+		ADDI sp, sp, 8
+		J iterate
+
+	rm_control_forward:
+		# 6:0 = speed: (0-99)
+		# 8:7 = wheel: 3 = both, 2 = right, 1 = left
+		# 9 = direction: 1 = forward, 0 = reverse
+		# Preserve registers - push to stack
+		ADDI sp, sp, -8
+		SW ra, 4(sp)
+		SW a0, 0(sp)
+		ANDI t0, s2, 0xFF	# 00 = slow 01 = medium 10 = fast
+		ADDI t0, t0, 1		# 1 = 50% 2 = 70% 3 = 90%
+		MUL t0, t0, 20		# multiply to equal percentage
+        ADDI t0, t0, 30
+		LI a0,0b1110000000
+		OR a0, a0, t0		# save percentage in a0 command
+		JAL start_motor
+
+		# Pop registers
+		LW a0, 0(sp)
+		LW ra, 4(sp)
+		ADDI sp, sp, 8
 		J iterate
 
 	rm_control_backward:
-        # 6:0 = speed: (0-99)
-        # 8:7 = wheel: 3 = both, 2 = right, 1 = left
-        # 9 = direction: 1 = forward, 0 = reverse
-        ADDI sp, sp, -8
-        SW ra, 4(sp)
-        SW a0, 0(sp)
+		# 6:0 = speed: (0-99)
+		# 8:7 = wheel: 3 = both, 2 = right, 1 = left
+		# 9 = direction: 1 = forward, 0 = reverse
+		ADDI sp, sp, -8
+		SW ra, 4(sp)
+		SW a0, 0(sp)
 
-        LI a0,3 # stop both motors
-        JAL stop_motor
+		LI a0,3 # stop both motors
+		JAL stop_motor
 
-        LI a0,0b0110000011
-        JAL start_motor
+		ANDI t0, s2, 0xFF	# 00 = slow 01 = medium 10 = fast
+		ADDI t0, t0, 1		# 1 = 30% 2 = 60% 3 = 90%
+		MUL t0, t0, 30		# multiply to equal percentage
+		LI a0,0b0110000000
+		OR a0, a0, t0		# save percentage in a0 command
+		JAL start_motor
 
-        # Pop registers
-        LW a0, 0(sp)
-        LW ra, 4(sp)
-        ADDI sp, sp, 8
 
-        J iterate
+		# Pop registers
+		LW a0, 0(sp)
+		LW ra, 4(sp)
+		ADDI sp, sp, 8
+
+		J iterate
 
 	rm_control_brake:
 		# Preserve registers - push to stack
-        ADDI sp, sp, -8
-        SW ra, 4(sp)
-        SW a0, 0(sp)
+		ADDI sp, sp, -8
+		SW ra, 4(sp)
+		SW a0, 0(sp)
 
-        LI a0,3
-        JAL stop_motor
+		LI a0,3
+		JAL stop_motor
 
-        # Pop registers
-        LW a0, 0(sp)
-        LW ra, 4(sp)
-        ADDI sp, sp, 8
+		# Pop registers
+		LW a0, 0(sp)
+		LW ra, 4(sp)
+		ADDI sp, sp, 8
 		J iterate
 .END rm_control
 
-.ENT stop_motor
+.ENT stop_motor		#TODO possibly unused?
 stop_motor:
     LI t0,1
     BEQ t0,a0,stopleft
@@ -677,7 +670,7 @@ stop_motor:
 
 .ENT start_motor
 start_motor:
-    #arguments are stored in a0
+    # arguments are stored in a0
     # 6:0 = speed (0-99)
     # 8:7 = wheel 3 = both, 2 = right, 1 = left
     # 9 = direction 1 = forward, 0 = back
@@ -685,89 +678,103 @@ start_motor:
 	SW a0, 0(sp)
 	SW ra, 4(sp)
 
-	# handle direction first
-	LI a0, 3	# stop both motors to be sure it is not pulsing
-	JAL stop_motor
-	LW a0, 0(sp) # load original value back
-
+	# mask direction and set direction
 	ANDI t0, a0, 0b1000000000
 	SRL t0, t0, 9
 	LI t1, 1
 	BEQ t0, zero, set_reverse
 	BEQ t0, t1, set_forward
-
-	start_motor_sequence:
-    ANDI t0,a0,0b110000000
-    LI t1,0b10000000
-    BEQ t1,t0,startleft
-    ADDI t1,0b100000000
-    BEQ t1,t0,startboth
-    startright:
-        ANDI t0,a0,0x7F
-        SLL t0, t0, 5
-        SW t0,OC2RS
-        LI t0, 1 << 2
-        SW t0, TRISDCLR
-        JR ra
-    startleft:
-        ANDI t0,a0,0x7F
-        SLL t0, t0, 5
-        SW t0,OC3RS
-        LI t0, 1 << 1
-        SW t0, TRISDCLR
-        JR ra
-    startboth:
-        ANDI t0,a0,0x7F
-        SLL t0, t0, 5
-        SW t0,OC2RS
-        SW t0,OC3RS
-        LI t0, 1 << 1
-        SW t0, TRISDCLR
-        LI t0, 1 << 2
-        SW t0, TRISDCLR
-        JR ra
 	
-	set_reverse: #reverse pins are PORTD 7:6
-		LW t2, OC2RS
-		LW t3, OC3RS
+	set_reverse: # direction pins are PORTD 7:6
+		# Turn motors off before changing direction
+		#LW t2, OC2RS
+		#LW t3, OC3RS
 		SW zero, OC2RS
-		SW zero, OC3RS	# double check not pulsing
+		SW zero, OC3RS
+		LI t0, 0b110
+		SW t0, TRISDSET
+		
+		# Set direction of motors
+        #LW t1, LATD
+		#ANDI t0, t1, 0b00111111     # mask set 7:6 to zero
+		#ORI t0, t0, 0b10111111		# set reverse 7:6 0b10 is reverse
+		#AND t0, t0, t1				# set motors reverse direction
+		#SW t0, LATD
 
-		ANDI t0, LATD, 0b00111111	# mask
-		ORI t0, t0, 0b10111111		# set motors to reverse
-		XOR t0, LATD		# set motors reverse direction
-		SW t0, LATD
+        LI t0, 0b10000000
+        SW t0, LATDSET
+        LI t0, 0b01000000
+        SW t0, LATDCLR
 		
-		SW t2, OC2RS	# reset OC values
-		SW t3, OC3RS
+		# Turn on motors after changing direction not sure if needed
+		#SW t2, OC2RS
+		#SW t3, OC3RS
+		#LI t0, 0b110
+		#SW t0, TRISDCLR
 		J start_motor_sequence
-	set_forward:
-		LW t2, OC2RS
-		LW t3, OC3RS
+
+	set_forward: # direction pins are PORTD 7:6
+		# Turn motors off before changing direction
+		#LW t2, OC2RS
+		#LW t3, OC3RS
 		SW zero, OC2RS
-		SW zero, OC3RS	# double check not pulsing
+		SW zero, OC3RS
+		LI t0, 0b110
+		SW t0, TRISDSET
 		
-		LI t0, 0b01111111
-		AND t0, TRISD
-		SW t0, TRISDCLR
+		# Set direction of motors
+        LW t0, LATD
+		ANDI t0, t1, 0b00111111     # mask
+		ORI t0, t0, 0b01111111		# set forward 7:6 0b01 is forward
+		AND t0, t0, t1                  # set motors forward direction
+		SW t0, LATDCLR
 		
-		SW t2, OC2RS
-		SW t3, OC3RS
+		# Turn on motors after changing direction not sure if needed
+		#SW t2, OC2RS
+		#SW t3, OC3RS
+		#LI t0, 0b110
+		#SW t0, TRISDSET
 		J start_motor_sequence
+	
+	# Start motors
+	# arguments are stored in a0
+    # 6:0 = speed (0-99)
+    # 8:7 = wheel 3 = both, 2 = right, 1 = left
+    # 9 = direction 1 = forward, 0 = back
+	start_motor_sequence:
+		ANDI t0,a0,	0b110000000	# mask wheel command
+		LI t1,		0b010000000	# mask left wheel
+		BEQ t1,t0,startleft
+		LI t1,		0b110000000	# mask both wheels
+		BEQ t1,t0,startboth
+
+		# start individual motors
+		startright:
+			ANDI t0,a0,0x7F		# mask speed
+			SW t0,OC2RS         # set speed
+			LI t0, 1 << 2
+			SW t0, TRISDCLR		# turn motor to output
+			J end_motor_sequence
+
+		startleft:
+			ANDI t0,a0,0x7F		# mask speed
+			SW t0,OC3RS			# set speed
+			LI t0, 1 << 1
+			SW t0, TRISDCLR		# set left motor to output
+			J end_motor_sequence
+
+		startboth:
+			ANDI t0,a0,0x7F		# mask speed
+			#SLL t0, t0, 5
+			SW t0,OC2RS			# set both speeds
+			SW t0,OC3RS
+			LI t0, 0b110		# set both motors to output
+			SW t0, TRISDCLR
+			J end_motor_sequence
+		
+	end_motor_sequence:
+		LW a0, 0(sp)
+		LW ra, 4(sp)
+		ADDI sp, sp, -8
+		JR ra
 .END start_motor
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
