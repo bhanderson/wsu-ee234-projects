@@ -8,9 +8,11 @@
 
 .GLOBAL main
 .DATA
-# left 40, right 41, forward 42, backward 43, brake 44
+# left 40, right 41, forward 42, backward 43, brake 44, advanced 45
 # put program here
-program: .word 0x4190, 0x4090, 0x4190, 0x4090, 0x4190, 0x4090, 0x4190, 0x4090, 0x4190, 0x4090, 0x3300, 0x80, 0x00
+program: .word 0x4520, 0x4520, 0x4520, 0x4520, 0x4520, 0x4520, 0x4502, 0x4502, 0x4502, 0x4502, 0x4502, 0x4502, 0x4520, 0x4520, 0x4520, 0x4520, 0x4520, 0x4520, 0x4502, 0x4502, 0x4502, 0x4502, 0x4502, 0x4502, 0x3300, 0x80, 0x00
+#program: .word 0x4501, 0x4512, 0x4522, 0x4521, 0x4510, 0x4500, 0x4502, 0x4520, 0x3300
+#program: .word 0x4190, 0x4090, 0x4190, 0x4090, 0x4190, 0x4090, 0x4190, 0x4090, 0x4190, 0x4090, 0x3300, 0x80, 0x00
 #program: .word 0x4090, 0x4210, 0x4190, 0x4210, 0x4090, 0x4210, 0x4190, 0x4210, 0x4090, 0x4210, 0x4190, 0x4210, 0x4090, 0x4210, 0x4190, 0x4210, 0x4090, 0x3300, 0x80, 0x00
 #program: .word 0x4090, 0x4090, 0x4090, 0x4090, 0x4090, 0x4090, 0x4090, 0x3300, 0x80, 0x00
 #program: .word 0x4190, 0x4190, 0x4190, 0x4190, 0x4190, 0x4190, 0x4190, 0x3300, 0x80, 0x00
@@ -50,21 +52,34 @@ main:
 		BEQ t0, t1, rm_branch
 		ADDI t0, t0, 1		# checksum for control class (4)
 		BEQ t0, t1, rm_control
-		ADDI t0, t0, 1		# checksum for adv cont class (4)
-		BEQ t0, t1, rm_control_advanced
+        LI t0, 0x3300
+        BEQ t0, t1, stop
 		# there is an error if reach this line
 		J error
 	iterate:
 		# execute it
 		ADDI a1, a1, 4	# iterate program counter to the next instruction
+		LI t0,0xffff
+		MOVE t1,zero
+		delay:
+			BEQ t0,t1,delay2
+			ADDI t1,t1,1
+			J delay
+        MOVE t1, zero
+        delay2:
+            BEQ t0, t1, loop
+            ADDI t1, t1,1
+            J delay2
+
+
 
 	end:
 		LI t0,0x7fff
 		MOVE t1,zero
-		delay:
+		delaya:
 			BEQ t0,t1,loop
 			ADDI t1,t1,1
-			J delay
+			J delaya
 
 
 	error:					# this lable starts the error sequence flashing the led pmods very quickly
@@ -519,10 +534,8 @@ main:
 		BEQ t0, t1, rm_control_backward
 		ADDI t1, t1, 1	#t1 = 4
 		BEQ t0, t1, rm_control_brake
-		ADDI t1, t1, 1	#t1 = 5
-		#BEQ t0, t1, rm_control_advanced_left
-		ADDI t1, t1, 1	#t1 = 6
-		#BEQ t0, t1, rm_control_advanced_right
+        ADDI t1, t1, 1  #t1 = 5
+        BEQ t0, t1, rm_control_advanced
 
 		rm_control_left:
 			# Preserve registers - push to stack
@@ -632,34 +645,37 @@ main:
 		# arguments are stored in a0
 		# 6:0 = speed (0-99)
 		# 8:7 = wheel 3 = both, 2 = right, 1 = left
-		# 9 = direction 1 = forward, 0 = back	ADDI sp, sp, -8
+		# 9 = direction 1 = forward, 0 = back
+        ADDI sp, sp, -8
 		SW ra, 4(sp)
 		SW a0, 0(sp)
 
 		# left wheel
-		ANDI t0, s2, 0x00F0		# mask speed
+		ANDI t0, s2, 0xF0		# mask speed
 		SRL t0, 4				# shift speed 
-		ADDI t0, 1				# add 1 to make it multiplyable
+		ADDI t0, t0, 1				# add 1 to make it multiplyable
 		MUL t0, t0, 20			# multiply to get a bigger duty cycle
 		ADDI t0, t0, 30			# add constant to increase duty cycle further
 		LI a0, 0b1010000000		# load left wheel command
 		OR a0, a0, t0			# or speed with left wheel
 		JAL start_motor
+
+
 		# right wheel
-		ANDI t0, s2, 0x00F0
-		SRL t0, 4
-		ADDI t0, 1
-		MUL t0, t0, 20
-		ADDI t0, t0, 30
-		LI a0, 0b1110000000
-		OR a0, a0, t0
+		ANDI t0, s2, 0xF		# mask speed
+		ADDI t0, t0, 1			# add 1 to make it multiplyable
+		MUL t0, t0, 20			# multiply to get a bigger duty cycle
+		ADDI t0, t0, 30			# add constant to increase duty cycle further
+    #   SW t0, OC3RS
+		LI a0, 0b1100000000		# load left wheel command
+		OR a0, a0, t0			# or speed with left wheel
 		JAL start_motor
 
 		# pop registers
 		LW ra, 4(sp)
 		LW a0, 0(sp)
 		ADDI sp, sp, 8
-	JR ra
+	J iterate
 .END rm_control_advanced
 
 .ENT stop_motor
@@ -711,53 +727,46 @@ main:
 		
 		set_reverse: # direction pins are PORTD 7:6
 			# Turn motors off before changing direction
-			#LW t2, OC2RS
-			#LW t3, OC3RS
+            LW t2, OC2RS
+            LW t3, OC3RS
 			SW zero, OC2RS
 			SW zero, OC3RS
 			LI t0, 0b110
 			SW t0, TRISDSET
-			
-			# Set direction of motors
-			#LW t1, LATD
-			#ANDI t0, t1, 0b00111111     # mask set 7:6 to zero
-			#ORI t0, t0, 0b10111111		# set reverse 7:6 0b10 is reverse
-			#AND t0, t0, t1				# set motors reverse direction
-			#SW t0, LATD
 
+            # set direction of motors
 			LI t0, 0b10000000
 			SW t0, LATDSET
 			LI t0, 0b01000000
 			SW t0, LATDCLR
 			
-			# Turn on motors after changing direction not sure if needed
-			#SW t2, OC2RS
-			#SW t3, OC3RS
-			#LI t0, 0b110
-			#SW t0, TRISDCLR
+			# Turn on motors after changing direction
+			SW t2, OC2RS
+			SW t3, OC3RS
+			LI t0, 0b110
+			SW t0, TRISDCLR
 			J start_motor_sequence
 
 		set_forward: # direction pins are PORTD 7:6
 			# Turn motors off before changing direction
-			#LW t2, OC2RS
-			#LW t3, OC3RS
+            LW t2, OC2RS
+            LW t3, OC3RS
 			SW zero, OC2RS
 			SW zero, OC3RS
 			LI t0, 0b110
 			SW t0, TRISDSET
 			
 			# Set direction of motors
-			LW t0, LATD
-			ANDI t0, t1, 0b00111111     # mask
-			ORI t0, t0, 0b01111111		# set forward 7:6 0b01 is forward
-			AND t0, t0, t1                  # set motors forward direction
+            LI t0, 0b10000000
 			SW t0, LATDCLR
-			
-			# Turn on motors after changing direction not sure if needed
-			#SW t2, OC2RS
-			#SW t3, OC3RS
-			#LI t0, 0b110
-			#SW t0, TRISDSET
+            LI t0, 0b01000000
+            SW t0, LATDSET
+
+            # Turn on motors after changing direction
+            SW t2, OC2RS
+            SW t3, OC3RS
+            LI t0, 0b110
+            SW t0, TRISDCLR
 			J start_motor_sequence
 		
 		# Start motors
@@ -777,7 +786,7 @@ main:
 				ANDI t0,a0,0x7F		# mask speed
 				SW t0,OC2RS         # set speed
 				LI t0, 1 << 2
-				SW t0, TRISDCLR		# turn motor to output
+				SW t0, TRISDCLR		# set right motor to output
 				J end_motor_sequence
 
 			startleft:
@@ -785,6 +794,10 @@ main:
 				SW t0,OC3RS			# set speed
 				LI t0, 1 << 1
 				SW t0, TRISDCLR		# set left motor to output
+                LI t0, 0xFFF
+                extradelay:
+                ADDI t0, t0, -1
+                BNE t0, zero, extradelay
 				J end_motor_sequence
 
 			startboth:
@@ -799,6 +812,6 @@ main:
 		end_motor_sequence:
 			LW a0, 0(sp)
 			LW ra, 4(sp)
-			ADDI sp, sp, -8
+			ADDI sp, sp, 8
 			JR ra
 .END start_motor
