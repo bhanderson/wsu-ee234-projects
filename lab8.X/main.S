@@ -1,3 +1,4 @@
+# basic UART transmitting
 #include <p32xxxx.h>
 
 #pragma config FNOSC	= PRIPLL
