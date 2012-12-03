@@ -45,29 +45,36 @@ main:
      ADDI sp, sp, -8
      SW ra, 4(sp)
      SW a0, 0(sp)
-     LI a0, 1110000011
+     LI a0, 1110001010
      JAL start_motor
      LW a0, 0(sp)
 	 LW ra, 4(sp)
 	 ADDI sp, sp, 8
+     J loop
      right:
      ADDI sp, sp, -8
      SW ra, 4(sp)
      SW a0, 0(sp)
-     LI a0, 1100000011
+     LI a0, 1100001010
      JAL start_motor
+     LI a0, 2
+     JAL stop_motor
      LW a0, 0(sp)
 	 LW ra, 4(sp)
 	 ADDI sp, sp, 8
+     J loop
      left:
      ADDI sp, sp, -8
      SW ra, 4(sp)
      SW a0, 0(sp)
-     LI a0, 1010000011
+     LI a0, 1010001010
      JAL start_motor
+     LI a0, 1
+     JAL stop_motor
      LW a0, 0(sp)
 	 LW ra, 4(sp)
 	 ADDI sp, sp, 8
+     J loop
      error:
      ADDI sp, sp, -8
      SW ra, 4(sp)
