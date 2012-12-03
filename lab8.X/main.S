@@ -1,99 +1,266 @@
-# basic UART transmitting
-#include <p32xxxx.h>
+# ***************************************************************************************************************************
+# * Author: AO                                                                                                              *
+# * Course: EE 234 Microprocessor Systems - Lab #                                                                           *
+# * Project:                                                                                                                *
+# * File: main.S                                                                                                            *
+# * Description: This file is provided to help you get started with MIPS32 (.s) assembly programs.                          *
+# *              You may use this template for getting started with .S files also, in which preprocessor directives         *
+# *              are allowed.                                                                                               *                           
+# *                                                                                                                         *
+# * Inputs:                                                                                                                 *
+# * Outputs:                                                                                                                *
+# * Computations:                                                                                                           *
+# *                                                                                                                         *
+# * Revision History:                                                                                                       *
+# *************************************************************************************************************************** 
 
-#pragma config FNOSC	= PRIPLL
-#pragma config FPLLMUL	= MUL_20
-#pragma config FPLLDIV	= DIV_2
-#pragma config FPBDIV	= DIV_2
-#pragma config FPLLODIV	= DIV_1
+# XXXXXXXXXXXXXXX UART Example XXXXXXXXXXXXXXXXXXX
+
+
+# ***************************************************************************************************************************
+# *                                                                                                                         *
+# *                                           Include Files                                                                 *
+# *                                                                                                                         *
+# ***************************************************************************************************************************
+
+/* #include all necessary standard and user-defined libraries */
+#include <p32xxxx.h> /* Includes all major functions and macros required to develop
+                        programs for the PIC32MX4 */
+
+
+/* SYSCLK = 80 MHz (8 MHz Crystal/ FPLLIDIV * FPLLMUL / FPLLODIV)
+// PBCLK = 40 MHz
+// Primary Osc w/PLL (XT+,HS+,EC+PLL)
+// WDT OFF
+// Other options are don't care */
+
+#pragma config FNOSC	 = PRIPLL 
+#pragma config FPLLMUL  = MUL_20
+#pragma config FPLLIDIV  = DIV_2
+#pragma config FPBDIV  = DIV_2 /* Divide SYSCLK by 2 ==> PBCLK */
+#pragma config FPLLODIV  = DIV_1 
+
+# ***************************************************************************************************************************
+# *                                                                                                                         *
+# *                                           Global Symbols                                                                *
+# *                                                                                                                         *
+# ***************************************************************************************************************************
 
 .GLOBAL main
-.DATA
-# data
-.TEXT
-.ENT main
+
+# ***************************************************************************************************************************
+# *                                                                                                                         *
+# *                                           Data Segment                                                                  *
+# *                                                                                                                         *
+# ***************************************************************************************************************************
+
+# This is where all variables are defined.
+# We generally assign pointer/address registers to these variables and access them indirectly via these registers.
+
+.DATA                        # The start of the data segment
+
+
+# ***************************************************************************************************************************
+# *                                                                                                                         *
+# *                                           Code Segment                                                                  *
+# *                                                                                                                         *
+# ***************************************************************************************************************************
+
+.TEXT                        # The start of the code segment
+	                         
+.ENT main                    # Setup a main entry point
 main:
-    JAL setupPorts
-    JAL clearLEDs
-    JAL setupUART1
 
-    loop:
-    # check if shift register buffer is empty
-    LW s0, U1STA
-    ANDI s0, s0, 1 << 8
-    BEQZ s0, loop
-    # load next byte to transmit
-    LI t0, 'A'
-    SW t0, U1TXREG
-    J loop
+	JAL setupPORTs
+	JAL clearLEDs
+	JAL setupUART1
 
+	loop:
+		# Event loop
+		
+		# Trasmit forever
+		# Check bit 8 U1STA shift register, buffer empty?
+		LW s0, U1STA
+		ANDI s0, s0, 1 << 8
+		# Not empty? Wait until empty
+		BEQZ s0, loop
+		
+		# Check bit 0 U1STA recieve buffer, data available?
+		LW s0, U1STA
+		ANDI s0, s0, 1
+		# Not available? contintue with program
+		BEQZ s0, write
+
+		write:
+			# Load next byte to transmit
+			SW t0, U1TXREG 
+			J loop      # Embedded programs require that they run forever! So jump back to the beginning of the loop
+		
+		read:
+			# Store recieve register
+			SW t0, U1RXREG
+			LI t1, 0x3C00
+			SW t1, LATBSET
+			J loop
 .END main
 
-.ENT setupPorts
-setupPorts:
-    ADDI sp, sp, -8
-    SW s0, 0(sp)
+# ***************************************************************************************************************************
+# *                                                                                                                         *
+# *                                           Subroutine Definitions                                                        *
+# *                                                                                                                         *
+# ***************************************************************************************************************************
 
-    # Set LD4:1 RB13:10 as output
-    LI t0, 0x3C00
-    SW t0, TRISBCLR
-    LA s0, TRISB
+# The below comment block is required for all defined subroutines!
+# ***************************************************************************************************************************
+# * Function Name:                                                                                                          *
+# * Description:                                                                                                            *
+# *                                                                                                                         *
+# * Inputs:		                                                                                                            *
+# * Outputs:	                                                                                                            *
+# * Computations:                                                                                                           *
+# *                                                                                                                         *
+# * Errors:                                                                                                                 *
+# * Registers Preserved:                                                                                                    *
+# *                                                                                                                         *
+# * Preconditions:                                                                                                          *
+# * Postconditions:                                                                                                         *
+# *                                                                                                                         *
+# * Revision History:                                                                                                       *
+# ***************************************************************************************************************************
 
-    LW s0, 0(sp)
-    ADDI sp, sp, 8
+.ENT setupPORTs
+setupPORTs:
 
-    JR ra
-.END setupPorts
+	# Preserve registers - push to stack
+	ADDI sp, sp, -8
+	SW ra, 4(sp)
+	SW s0, 0(sp)
+	
+	LA s0, TRISB
+	# LEDs LD4:1 RB13:10 - set only these bits as digital outputs
+	LW t0, (s0)
+	ANDI t0, t0, 0b1100001111111111
+	SW t0, (s0)
+	
+	# Pop registers
+	LW s0, 0(sp)
+	LW ra, 4(sp)
+	ADDI sp, sp, 8
+	
+	JR ra
+
+.END setupPORTs
 
 .ENT clearLEDs
 clearLEDs:
-    ADDI sp, sp, -8
-    SW s0, 0(sp)
 
-    # clear LD4:1 RB13:10
-    LI t0, 0x3C00
-    SW t0, LATBCLR
-
-    LW s0, 0(sp)
-    ADDI sp, sp, 8
-
-    JR ra
+	# Preserve registers - push to stack
+	ADDI sp, sp, -8
+	SW ra, 4(sp)
+	SW s0, 0(sp)
+	
+	LA s0, LATB
+	# LEDs LD4:1 RB13:10 - clear only these bits
+	LW t0, (s0)
+	ANDI t0, t0, 0b1100001111111111
+	SW t0, (s0)
+	
+	# Pop registers
+	LW s0, 0(sp)
+	LW ra, 4(sp)
+	ADDI sp, sp, 8
+	
+	JR ra
 
 .END clearLEDs
 
+.ENT setupMultiVectoredMode
+setupMultiVectoredMode:
+
+	# Preserve registers - push to stack
+	ADDI sp, sp, -8
+	SW ra, 4(sp)
+	SW s0, 0(sp)
+	
+	# Interrupt control register
+	LA s0, INTCON # Register necessary for setting multi-vectored mode
+	LW t0, (s0)
+	ORI t0, t0, 1 << 12 # Set for mutli-vectored mode
+	#SW $t0, ($s0)
+	SW t0, INTCON
+
+	# Pop registers
+	LW s0, 0(sp)
+	LW ra, 4(sp)
+	ADDI sp, sp, 8
+	
+	JR ra
+
+.END setupMultiVectoredMode
+
 .ENT setupUART1
 setupUART1:
-    ADDI sp, sp, -8
-    SW s0, 0(sp)
 
-    # clear and reset UART1 control/config register
-    LA s0, U1MODE
-    SW zero, (s0)
+	# Preserve registers - push to stack
+	ADDI sp, sp, -8
+	SW ra, 4(sp)
+	SW s0, 0(sp)
+	
+	# U1MODE - UART1 Mode Register, i.e. control/config register
+	# Bit 15 - ON UART enable bit, 1 = UART enabled, 0 = disabled
+	LA s0, U1MODE 
+	LI t0, 0 # disable UART1, reset it
+	SW t0, (s0)
 
-    # Clear Tx and Rx buffers
-    LA s0, U1TXREG
-    SW zero, (s0)
-    LA s0, U1RXREG
-    SW zero, (s0)
+	# Clear the transmit and receive buffers
+	LA s0, U1TXREG # UART1 transmit register
+	MOVE t0, zero # clear register value
+	SW t0, (s0)
+	LA s0, U1RXREG # UART1 receive register
+	MOVE t0, zero # clear register value
+	SW t0, (s0)
 
-    # Set baud rate
-    LA s0, U1BRG
-    LI t0, 259  # (PBCLK / (16 * baud)) -1 = 9600 bps
-    SW t0, (s0)
+	# Setup the baud rate - bits per second (bps) of data received and transmitted
+	LA s0, U1BRG # UART1 Baud Rate Register
+	LI t0, 259 # U1BRG = (PBCLK / (16 * baud rate)) - 1; PBCLK = 40 MHz, desired baud rate = 9600 bps
+	SW t0, (s0)
+	
+	
+	# U1STA - UART1 Status and Control Register
+	# Bits 15:14 - UTXISEL TX Interrupt Mode Selection bits 10 = interrupt generated tranmit buffer becomes empty, 01 = interrupt is generated when all character transmitted,
+	#                                                       00 = interrupt generated when transmit buffer becomes not full
+	# Bit 12 - URXEN Receive Enable bit 1 = UART1 receiver is enabled, U1RX pin controlled by UART1; 0 = UART1 receiver disabled, U1RX pin ignored
+	# Bit 10 - UXTEN Transmit Enable bit 1 = UART1 transmitter enabled, U1TX pin controlled by UART1; 0 = UART1 trasmitter diabled, transmissin aborted, buffer reset
+	# Bit 9 - UTXBF Transmit Buffer Full Status bit 1 = Transmit buffer is full, 0 = not full
+	# Bit 8 - TRMT Transmit Shift Registr is Empty bit 1 = Transmit shift register and transmit buffer empty, 0 = Transmit shift register is not empty, transmission in progress
+	# Bits 7:6 - URXISEL Receive Interrupt Mode Selection bit 11 = Interrup flag bit set when receive buffer is full, 10 set when buffer 3/4 full, 0x flag bit set when character is received
+	# Bit 3 - Parity Error Status bit 1 = parity error detected, 0 = parity error not detected
+	# Bit 2 - FERR Framing Error Status bit 1 = framing error detected, 0 = no framing error detected
+	# Bit 1 - OERR Receive Buffer Overrun Error Status bit 1 = receive buffer overflowed, 0 = buffer has not overflowed
+	# Bit 0 - URXDA Receive Buffer Data Available bit 1 = receive buffer has data, 0 = receive buffer is empty
+	LA s0, U1STA
+	#LI t0, 1 << 10 # Don't need to preserve any bits, overwrite with constant; not applying interrupts; enable transmission only
+	LI t0, 0b0001010000000000	# transmit and recieve enabled bits 12 & 10
+	SW t0, (s0)
 
-    # enable Tx on Status and Control Reg
-    LA s0, U1STA
-    LI t0, 1 << 10
-    SW t0, (s0)
+	# Set priority
+	# IPC6 <4:2> IEC0<27> = U1RX, IEC0<28> = U1TX
 
-    # enable UART1
-    LA s0, U1MODE
-    LI t0, 0x8000
-    SW t0, (s0)
-
-
-    LW s0, 0(sp)
-    ADDI sp, sp, 8
-    JR ra
+	# U1MODE - UART1 Mode Register, i.e. control/config register
+	# Bit 0 - STSEL Stop Selection bit 1 = 2 stop bits, 0 = 1 stop bit
+	# Bits 2:1 - PDSEL Parity and Data Selection bits 11 = 9 data, no parity; 10 = 8 data, odd parity; 01 = 8 data, even parity; 00 = 8 data, no parity
+	# Bit 3 - BRGH High Baud Rate Enable bit 1 = high speed, 0 = standard speed
+	# Bits 9:8 - UEN UART Enable bits 00 = U1TX and U1RX pins enabled and used
+	# Bit 15 - ON UART enable bit, 1 = UART enabled, 0 = disabled
+	LA s0, U1MODE
+	LI t0, 0b1000000000000000 # Don't need to preserve any bits, overwrite with constant
+	SW t0, (s0)
+	
+	# Pop registers
+	LW s0, 0(sp)
+	LW ra, 4(sp)
+	ADDI sp, sp, 8
+	
+	JR ra
 
 .END setupUART1
