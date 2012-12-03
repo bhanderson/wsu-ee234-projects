@@ -12,84 +12,84 @@
 .TEXT
 
 .ENT main
-main:
-	DI
-	JAL port_setup
-	JAL setupMultiVectoredMode
-	JAL setupOutputCompare2Module
-	JAL setupOutputCompare3Module
-	JAL setupTimer2
-	JAL setupTimer3
-	JAL enableOutputCompare2Int
-	JAL enableOutputCompare3Int
-	EI
-    #s1 is our sensor state register
-    LI s1, 0
-    loop:
-     LW s1,(PORTG)
-     SRL s1,s1,6
-     #only the last 3 pins matter
-     ANDI s1,s1,0x7
+	main:
+		DI
+		JAL port_setup
+		JAL setupMultiVectoredMode
+		JAL setupOutputCompare2Module
+		JAL setupOutputCompare3Module
+		JAL setupTimer2
+		JAL setupTimer3
+		JAL enableOutputCompare2Int
+		JAL enableOutputCompare3Int
+		EI
 
-     #right is 2
-     #middle is 1
-     #left is 0
-     LI t0, 0b101
-     BEQ s1,t0,forward
-     LI t0,0b001
-     BEQ s1,t0,right
-     LI t0,0b100
-     BEQ s1,t0,left
-     J error
-     forward:
-     ADDI sp, sp, -8
-     SW ra, 4(sp)
-     SW a0, 0(sp)
-     LI a0, 1110001010
-     JAL start_motor
-     LW a0, 0(sp)
-	 LW ra, 4(sp)
-	 ADDI sp, sp, 8
-     J loop
-     right:
-     ADDI sp, sp, -8
-     SW ra, 4(sp)
-     SW a0, 0(sp)
-     LI a0, 1100001010
-     JAL start_motor
-     LI a0, 2
-     JAL stop_motor
-     LW a0, 0(sp)
-	 LW ra, 4(sp)
-	 ADDI sp, sp, 8
-     J loop
-     left:
-     ADDI sp, sp, -8
-     SW ra, 4(sp)
-     SW a0, 0(sp)
-     LI a0, 1010001010
-     JAL start_motor
-     LI a0, 1
-     JAL stop_motor
-     LW a0, 0(sp)
-	 LW ra, 4(sp)
-	 ADDI sp, sp, 8
-     J loop
-     error:
-     ADDI sp, sp, -8
-     SW ra, 4(sp)
-     SW a0, 0(sp)
-     LI a0, 3
-     JAL stop_motor
-     LW a0, 0(sp)
-	 LW ra, 4(sp)
-	 ADDI sp, sp, 8
+		#s1 is our sensor state register
+		LI s1, 0
+
+		loop:
+			LW s1,(PORTG)
+			SRL s1,s1,6
+			#only the last 3 pins matter
+			ANDI s1,s1,0x7
+
+			#right is 2
+			#middle is 1
+			#left is 0
+			LI t0, 0b101
+			BEQ s1,t0,forward
+			LI t0,0b001
+			BEQ s1,t0,right
+			LI t0,0b100
+			BEQ s1,t0,left
+			J error
+		forward:
+			ADDI sp, sp, -8
+			SW ra, 4(sp)
+			SW a0, 0(sp)
+			LI a0, 1110001010
+			JAL start_motor
+			LW a0, 0(sp)
+			LW ra, 4(sp)
+			ADDI sp, sp, 8
+			J loop
+		right:
+			ADDI sp, sp, -8
+			SW ra, 4(sp)
+			SW a0, 0(sp)
+			LI a0, 1100001010
+			JAL start_motor
+			LI a0, 2
+			JAL stop_motor
+			LW a0, 0(sp)
+			LW ra, 4(sp)
+			ADDI sp, sp, 8
+			J loop
+		left:
+			ADDI sp, sp, -8
+			SW ra, 4(sp)
+			SW a0, 0(sp)
+			LI a0, 1010001010
+			JAL start_motor
+			LI a0, 1
+			JAL stop_motor
+			LW a0, 0(sp)
+			LW ra, 4(sp)
+			ADDI sp, sp, 8
+			J loop
+		error:
+			ADDI sp, sp, -8
+			SW ra, 4(sp)
+			SW a0, 0(sp)
+			LI a0, 3
+			JAL stop_motor
+			LW a0, 0(sp)
+			LW ra, 4(sp)
+			ADDI sp, sp, 8
+			J loop
 
 
-    J loop
-
-
-.END main
+	.END main
 
 .ENT port_setup
 	port_setup:
