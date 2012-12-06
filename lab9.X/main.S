@@ -26,68 +26,92 @@
 
 		#s1 is our sensor state register
 		LI s1, 0
-
+        ## CASES TO HANDLE
+        ## TODO: T type intersections
+        ## TODO: Line disappears momentarily
+        ## TODO: Line disappears and there are other lines coming to intersect
+        LI s3,9
 		loop:
 			LW s1,(PORTG)
 			SRL s1,s1,6
-			#only the last 3 pins matter
-			ANDI s1,s1,0x7
-
-			#right is 2
-			#middle is 1
+			#only the last 2 pins matter
+            SLL s2,s1,2 #store the last digit in s2, this is for detecting intersections
+			ANDI s1,s1,0x3
+            
+			#right is 1
 			#left is 0
-			LI t0, 0b101
-			BEQ s1,t0,forward
-			LI t0,0b001
-			BEQ s1,t0,right
-			LI t0,0b100
+			LI t0,1
+            BEQ s1,t0,right
+			ADDI t0,t0,1
 			BEQ s1,t0,left
-			J error
+			ADDI t0,t0,1
+			BEQ s1,t0,forward
+            BEQZ s2,intersection
+			J continue_task
 		forward:
+            BEQ s3,s1,loop
 			ADDI sp, sp, -8
 			SW ra, 4(sp)
 			SW a0, 0(sp)
-			LI a0, 1110001010
+			LI a0, 0b1110001011
 			JAL start_motor
 			LW a0, 0(sp)
 			LW ra, 4(sp)
 			ADDI sp, sp, 8
+            MOVE s3,s1
 			J loop
 		right:
+            BEQ s3,s1,loop
 			ADDI sp, sp, -8
 			SW ra, 4(sp)
 			SW a0, 0(sp)
-			LI a0, 1100001010
-			JAL start_motor
-			LI a0, 2
-			JAL stop_motor
-			LW a0, 0(sp)
-			LW ra, 4(sp)
-			ADDI sp, sp, 8
-			J loop
-		left:
-			ADDI sp, sp, -8
-			SW ra, 4(sp)
-			SW a0, 0(sp)
-			LI a0, 1010001010
+			LI a0, 0b1100001011
 			JAL start_motor
 			LI a0, 1
 			JAL stop_motor
 			LW a0, 0(sp)
 			LW ra, 4(sp)
 			ADDI sp, sp, 8
+            MOVE s3,s1
 			J loop
-		error:
+		left:
+            BEQ s3,s1,loop
 			ADDI sp, sp, -8
 			SW ra, 4(sp)
 			SW a0, 0(sp)
-			LI a0, 3
+			LI a0, 0b1010001011
+			JAL start_motor
+			LI a0, 2
 			JAL stop_motor
 			LW a0, 0(sp)
 			LW ra, 4(sp)
 			ADDI sp, sp, 8
+            MOVE s3,s1
 			J loop
-
+		continue_task:
+			#Just keep doing what were were doing until we recieve more input
+			J loop
+        intersection:
+            ADDI sp, sp, -8
+			SW ra, 4(sp)
+			SW a0, 0(sp)
+			LI a0, 0b1100001011
+			JAL start_motor
+			LI a0, 1
+			JAL stop_motor
+			LW a0, 0(sp)
+			LW ra, 4(sp)
+			ADDI sp, sp, 8
+            LI t0,25000
+            LI t1,0
+            delay:
+                ADDI t1,t1,1
+                NOP
+                NOP
+                NOP
+                BEQ t1,t0,loop
+                J delay
+            J loop
 
 	.END main
 
@@ -283,7 +307,7 @@
 
 		# timer max value = 65,535
 		LA s0, PR2
-		LI t0, 99 # OCxR / PRx + 1 = duty cycle
+		LI t0, 999 # OCxR / PRx + 1 = duty cycle
 		SW t0, (s0)
 
 		LA s0, T2CON
@@ -313,7 +337,7 @@
 		SW zero, (s0) # clear timer value
 
 		LA s0, PR3
-		LI t0, 99 # OCxR / PRx +1 = Duty cycle
+		LI t0, 999 # OCxR / PRx +1 = Duty cycle
 		SW t0, (s0)
 
 		# turn on and set pbclk / 64, 16 bit timer mode, use pbclk
@@ -349,12 +373,32 @@
 			SW t0, OC3RS
 			LI t0, 1 << 1
 			SW t0, TRISDSET
-			JR ra
+
+            ##  Make the left wheel go backwards here
+            ## left direction pin = d7 0 for forwards, 1 for back
+
+            LI t0,1 << 7
+            SW t0, LATDSET
+            LW t0,OC2RS
+            SW t0,OC3RS         # set speed
+			LI t0, 1 << 1
+			SW t0, TRISDCLR
+            JR ra
 		stopright:
 			LI t0, 0
 			SW t0, OC2RS
 			LI t0, 1 << 2
 			SW t0, TRISDSET
+
+
+            ##  Make the right wheel go backwards here
+            ## right direction pin = d6 1 for forwards, 0 for back
+            LI t0,1 << 6
+            SW t0, LATDCLR
+            LW t0,OC3RS
+            SW t0,OC2RS         # set speed
+			LI t0, 1 << 2
+			SW t0, TRISDCLR
 			JR ra
 .END stop_motor
 
@@ -369,56 +413,8 @@
 		SW ra, 4(sp)
 
 		# mask direction and set direction
-        J set_forward
-		ANDI t0, a0, 0b1000000000
-		SRL t0, t0, 9
-		LI t1, 1
-		BEQ t0, zero, set_reverse
-		BEQ t0, t1, set_forward
-
-		set_reverse: # direction pins are PORTD 7:6
-			# Turn motors off before changing direction
-            LW t2, OC2RS
-            LW t3, OC3RS
-			SW zero, OC2RS
-			SW zero, OC3RS
-			LI t0, 0b110
-			SW t0, TRISDSET
-
-            # set direction of motors
-			LI t0, 0b10000000
-			SW t0, LATDSET
-			LI t0, 0b01000000
-			SW t0, LATDCLR
-
-			# Turn on motors after changing direction
-			SW t2, OC2RS
-			SW t3, OC3RS
-			LI t0, 0b110
-			SW t0, TRISDCLR
-			J start_motor_sequence
-
-		set_forward: # direction pins are PORTD 7:6
-			# Turn motors off before changing direction
-            LW t2, OC2RS
-            LW t3, OC3RS
-			SW zero, OC2RS
-			SW zero, OC3RS
-			LI t0, 0b110
-			SW t0, TRISDSET
-
-			# Set direction of motors
-            LI t0, 0b10000000
-			SW t0, LATDCLR
-            LI t0, 0b01000000
-            SW t0, LATDSET
-
-            # Turn on motors after changing direction
-            SW t2, OC2RS
-            SW t3, OC3RS
-            LI t0, 0b110
-            SW t0, TRISDCLR
-			J start_motor_sequence
+        J start_motor_sequence
+		
 
 		# Start motors
 		# arguments are stored in a0
@@ -434,14 +430,30 @@
 
 			# start individual motors
 			startright:
+                #set forward
+                LI t0, 1 << 2
+                SW t0, TRISDSET
+                LI t0, 0b01000000
+                SW t0, LATDSET
+
 				ANDI t0,a0,0x7F		# mask speed
+                LI t1,10
+                MUL t0,t0,t1
 				SW t0,OC2RS         # set speed
 				LI t0, 1 << 2
 				SW t0, TRISDCLR		# set right motor to output
+
+
 				J end_motor_sequence
 
 			startleft:
+                LI t0, 1 << 1
+				SW t0, TRISDSET
+                LI t0, 0b10000000
+                SW t0, LATDCLR
 				ANDI t0,a0,0x7F		# mask speed
+                LI t1,10
+                MUL t0,t0,t1
 				SW t0,OC3RS			# set speed
 				LI t0, 1 << 1
 				SW t0, TRISDCLR		# set left motor to output
@@ -452,7 +464,19 @@
 				J end_motor_sequence
 
 			startboth:
+                #set forward
+                LI t0, 1 << 1
+				SW t0, TRISDSET
+                LI t0, 0b10000000
+                SW t0, LATDCLR
+                
+                LI t0, 1 << 2
+                SW t0, TRISDSET
+                LI t0, 0b01000000
+                SW t0, LATDSET
 				ANDI t0,a0,0x7F		# mask speed
+                LI t1,10
+                MUL t0,t0,t1
 				#SLL t0, t0, 5
 				SW t0,OC2RS			# set both speeds
 				SW t0,OC3RS
