@@ -34,11 +34,13 @@
 // WDT OFF
 // Other options are don't care */
 
-#pragma config FNOSC	 = PRIPLL 
+#pragma config FNOSC	= PRIPLL
 #pragma config FPLLMUL  = MUL_20
-#pragma config FPLLIDIV  = DIV_2
-#pragma config FPBDIV  = DIV_2 /* Divide SYSCLK by 2 ==> PBCLK */
-#pragma config FPLLODIV  = DIV_1 
+#pragma config FPLLIDIV = DIV_2
+#pragma config FPBDIV   = DIV_2 /* Divide SYSCLK by 2 ==> PBCLK */
+#pragma config FPLLODIV = DIV_1
+
+
 
 # ***************************************************************************************************************************
 # *                                                                                                                         *
@@ -47,6 +49,8 @@
 # ***************************************************************************************************************************
 
 .GLOBAL main
+
+
 
 # ***************************************************************************************************************************
 # *                                                                                                                         *
@@ -83,39 +87,53 @@ main:
 	JAL enableOutputCompare3Int
 	EI
 
+#    limit:
+ #       LW s0, U1STA
+#		ANDI s0, s0, 1 << 8
+#		# Not empty? Wait until empty
+#		BEQZ s0, limit
+#		LW s0, U1STA
+#		ANDI s0, s0, 1
+#		BEQZ s0, limit
+#		LW t0, U1RXREG
+#		SW t0, U1TXREG
+
+#   J limit
+
 	test:
 		LW s0, U1STA
 		ANDI s0, s0, 1
 		BEQZ s0, test	# nothing to recieve keep looping
 		LW t0, U1RXREG
-		LI t1, 'w'
+		LI t1, 247
 		BEQ t0, t1, w
-		LI t1, 'a'
+		LI t1, 193
 		BEQ t0, t1, a
-		LI t1, 's'
+		LI t1, 243
 		BEQ t0, t1, s
-		LI t1, 'd'
+		LI t1, 196
 		BEQ t0, t1, d
-		LI t1, 'h'
+		LI t1, 200
 		BEQ t0, t1, h
 		J test
 
 	w:
 		LI s2, 0x4201
-		BEQ rm_control
+		B rm_control
 	a:
 		LI s2, 0x4001
-		BEQ rm_control
+		B rm_control
 	s:
 		LI s2, 0x4301
-		BEQ rm_control
+		B rm_control
 	d:
 		LI s2, 0x4101
-		BEQ rm_control
+		B rm_control
 	h:
-		BEQ rm_control_brake
+		B rm_control_brake
 
 	iterate:
+        LI s2, 0x4400
 		J test
 
 
@@ -139,7 +157,7 @@ main:
 		
 
 		SW t1, LATBSET
-		J loop      # Embedded programs require that they run forever! So jump back to the beginning of the loop
+		J loop      # Embedded programs require that they run forever So jump back to the beginning of the loop
 	
 .END main
 
@@ -272,7 +290,7 @@ setupUART1:
 
 	# Setup the baud rate - bits per second (bps) of data received and transmitted
 	LA s0, U1BRG # UART1 Baud Rate Register
-	LI t0, 51 #259 # U1BRG = (PBCLK / (16 * baud rate)) - 1; PBCLK = 40 MHz, desired baud rate = 9600 bps
+	LI t0, 2 # U1BRG = (PBCLK / (16 * baud rate)) - 1; PBCLK = 40 MHz, desired baud rate = 9600 bps
 	SW t0, (s0)
 	
 	
@@ -303,7 +321,7 @@ setupUART1:
 	# Bits 9:8 - UEN UART Enable bits 00 = U1TX and U1RX pins enabled and used
 	# Bit 15 - ON UART enable bit, 1 = UART enabled, 0 = disabled
 	LA s0, U1MODE
-	LI t0, 0b1000000000000000 # Don't need to preserve any bits, overwrite with constant
+	LI t0, 0b1000000000000000 # Dont need to preserve any bits, overwrite with constant
 	SW t0, (s0)
 	
 	# Pop registers
