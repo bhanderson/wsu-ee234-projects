@@ -5,7 +5,7 @@
 #pragma config FPLLDIV	= DIV_2
 #pragma config FPBDIV	= DIV_2
 #pragma config FPLLODIV	= DIV_1
-
+#pragma mplabsucksmydick
 .GLOBAL main
 .DATA
 
@@ -53,7 +53,7 @@
 			ADDI sp, sp, -8
 			SW ra, 4(sp)
 			SW a0, 0(sp)
-			LI a0, 0b1110001011
+			LI a0, 0b1110100001
 			JAL start_motor
 			LW a0, 0(sp)
 			LW ra, 4(sp)
@@ -65,7 +65,7 @@
 			ADDI sp, sp, -8
 			SW ra, 4(sp)
 			SW a0, 0(sp)
-			LI a0, 0b1100001011
+			LI a0, 0b1100100001
 			JAL start_motor
 			LI a0, 1
 			JAL stop_motor
@@ -79,7 +79,7 @@
 			ADDI sp, sp, -8
 			SW ra, 4(sp)
 			SW a0, 0(sp)
-			LI a0, 0b1010001011
+			LI a0, 0b1010100001
 			JAL start_motor
 			LI a0, 2
 			JAL stop_motor
@@ -89,7 +89,17 @@
             MOVE s3,s1
 			J loop
 		continue_task:
+            j forward
 			#Just keep doing what were were doing until we recieve more input
+            LI t0,5000
+            LI t1,0
+            delay2:
+                ADDI t1,t1,1
+                NOP
+                NOP
+                NOP
+                BEQ t1,t0,loop
+                J delay2
 			J loop
         intersection:
             ADDI sp, sp, -8
